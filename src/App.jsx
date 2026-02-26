@@ -29,8 +29,9 @@ if (!window.storage) {
   }
 }
 
-import { useState } from "react";
-import { DEFAULT_NOMINALS, T } from './utils/constants.js';
+import { useState, useEffect } from "react";
+import { T } from './utils/constants.js';
+import { getSocket, onEvent, emitEvent } from './socket.js';
 import { LandingScreen } from './components/LandingScreen.jsx';
 import { HostGameScreen } from './components/HostGameScreen.jsx';
 import { PlayerGameScreen } from './components/PlayerGameScreen.jsx';
@@ -50,23 +51,51 @@ function genId() {
 
 export default function App() {
   const [screen, setScreen]         = useState("landing");
-  const [gameNominals, setGameNominals] = useState(DEFAULT_NOMINALS);
-  const [gameSettings, setGameSettings] = useState({ timer: "7", selectedPreset: 0, falstart: false });
-  const [gameTopics, setGameTopics]   = useState("");
-  const [gameRounds, setGameRounds]   = useState("5");
-  const [gameResult, setGameResult]   = useState(null);
-  const [archiveId, setArchiveId]     = useState(null);
+  const [gameState, setGameState]   = useState(null);
+  const [roomCode, setRoomCode]     = useState(null);
+  const [isHost, setIsHost]         = useState(false);
+  const [connected, setConnected]   = useState(false);
+  const [gameResult, setGameResult] = useState(null);
+  const [archiveId, setArchiveId]   = useState(null);
 
-  const handleFinish = async (data) => {
-    const id = genId();
-    const record = { id, ...data };
-    try {
-      await window.storage.set(`results:${id}`, JSON.stringify(record), true);
-    } catch(e) { console.warn("Storage save failed", e); }
-    setArchiveId(id);
-    setGameResult(record);
-    setScreen("results");
-  };
+  useEffect(() => {
+    const socket = getSocket();
+    setConnected(socket.connected);
+
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+
+    const unsub1 = onEvent("room-created", ({ code }) => {
+      setRoomCode(code);
+      setIsHost(true);
+      setScreen("hostGame");
+    });
+
+    const unsub2 = onEvent("game-state", (state) => {
+      setGameState(state);
+    });
+
+    const unsub3 = onEvent("game-finished", ({ finalResult }) => {
+      const id = genId();
+      const record = { id, ...finalResult };
+      try { window.storage.set(`results:${id}`, JSON.stringify(record), true); } catch(e) {}
+      setArchiveId(id);
+      setGameResult(record);
+      setScreen("results");
+    });
+
+    const unsub4 = onEvent("error", ({ message }) => {
+      console.error("Server error:", message);
+    });
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      unsub1(); unsub2(); unsub3(); unsub4();
+    };
+  }, []);
 
   return (
     <div style={{
@@ -103,13 +132,33 @@ export default function App() {
       <div style={{ position: "relative", zIndex: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflowY: "auto" }}>
         {screen === "landing" && (
           <LandingScreen
-            onHost={(cfg) => { setGameNominals(cfg.nominals || DEFAULT_NOMINALS); setGameSettings(cfg.settings || gameSettings); setGameTopics(cfg.topics || ""); setGameRounds(cfg.rounds || "5"); setScreen("hostGame"); }}
-            onPlayer={() => setScreen("playerGame")}
+            connected={connected}
+            onHostCreated={() => {}}
+            onPlayerJoined={() => setScreen("playerGame")}
           />
         )}
-        {screen === "hostGame" && <HostGameScreen onFinish={handleFinish} nominals={gameNominals} initialSettings={gameSettings} initTopics={gameTopics} initRounds={gameRounds} />}
-        {screen === "playerGame" && <PlayerGameScreen />}
-        {screen === "results" && <ResultsScreen gameResult={gameResult} archiveId={archiveId} onRestart={() => setScreen("landing")} />}
+        {screen === "hostGame" && (
+          <HostGameScreen
+            gameState={gameState}
+            roomCode={roomCode}
+            onFinish={() => emitEvent("finish-game")}
+          />
+        )}
+        {screen === "playerGame" && (
+          <PlayerGameScreen gameState={gameState} />
+        )}
+        {screen === "results" && (
+          <ResultsScreen
+            gameResult={gameResult}
+            archiveId={archiveId}
+            onRestart={() => {
+              setScreen("landing");
+              setGameState(null);
+              setRoomCode(null);
+              setIsHost(false);
+            }}
+          />
+        )}
       </div>
     </div>
   );

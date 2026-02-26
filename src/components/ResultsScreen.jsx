@@ -1,15 +1,8 @@
 import { useState, useEffect } from "react";
 import { DEFAULT_NOMINALS, T } from '../utils/constants.js';
-import { getTotal, rebuildSnapshots } from '../utils/scoring.js';
-import { Btn, Badge, Card, Label, SectionToggle } from './ui/index.js';
+import { getTotal } from '../utils/scoring.js';
+import { Btn } from './ui/index.js';
 import { ScoreBoard } from './ScoreBoard.jsx';
-
-const MOCK_PLAYERS = [
-  { socketId: "p1", name: "Alibek",  latency: 12 },
-  { socketId: "p2", name: "Nodira",  latency: 34 },
-  { socketId: "p3", name: "Jasur",   latency: 8  },
-  { socketId: "p4", name: "Malika",  latency: 55 },
-];
 
 export function ResultsScreen({ gameResult, archiveId, onRestart }) {
   const [data, setData]           = useState(null);
@@ -25,16 +18,7 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
         .then(r => r ? setData(JSON.parse(r.value)) : setLoadError(true))
         .catch(() => setLoadError(true));
     } else {
-      setData({
-        id: "DEMO", date: new Date().toISOString(), nominals: DEFAULT_NOMINALS,
-        topicNames: ["1-mavzu", "Geografiya", "Tarix"],
-        topicScores: [
-          { p1:{10:"correct",20:"correct",30:"wrong",  40:"correct",50:null   }, p2:{10:"wrong",  20:"correct",30:"correct",40:null,     50:"correct"}, p3:{10:"correct",20:"wrong",  30:"correct",40:"correct",50:"wrong"  }, p4:{10:"correct",20:null,     30:"wrong",  40:"wrong",  50:"correct"} },
-          { p1:{10:"correct",20:null,     30:"correct",40:null,     50:"wrong"  }, p2:{10:null,     20:"correct",30:"wrong",  40:"correct",50:null     }, p3:{10:"wrong",  20:"correct",30:null,     40:"correct",50:"correct"}, p4:{10:"correct",20:"wrong",  30:"correct",40:null,     50:"wrong"  } },
-          { p1:{10:null,     20:"correct",30:"wrong",  40:"correct",50:"correct"}, p2:{10:"correct",20:null,     30:"correct",40:"wrong",  50:null     }, p3:{10:"correct",20:"correct",30:null,     40:null,     50:"correct"}, p4:{10:"wrong",  20:"correct",30:"correct",40:"correct",50:null     } },
-        ],
-        players: MOCK_PLAYERS,
-      });
+      setLoadError(true);
     }
   }, [gameResult]);
 
@@ -48,9 +32,9 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
   if (!data) return <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ color:"#8899aa" }}>Yuklanmoqda...</div></div>;
 
   const nominals       = data.nominals || DEFAULT_NOMINALS;
-  const topicScoresMock = data.topicScores || [];
-  const topicNamesMock  = data.topicNames  || [];
-  const playersData     = data.players     || MOCK_PLAYERS;
+  const topicScoresData = data.topicScores || [];
+  const topicNamesData  = data.topicNames  || [];
+  const playersData     = data.players     || [];
   const gameDate        = data.date ? new Date(data.date) : new Date();
   const gameId          = archiveId || data.id || "DEMO";
 
@@ -60,13 +44,21 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
   const toggleTopic = (ti) => setCollapsedTopics(prev => { const next = new Set(prev); if (next.has(ti)) next.delete(ti); else next.add(ti); return next; });
 
   const ranked = playersData
-    .map(p => ({ ...p, total: topicScoresMock.reduce((sum, ts) => sum + getTotal(ts, p.socketId, nominals), 0) }))
+    .map(p => ({ ...p, total: topicScoresData.reduce((sum, ts) => sum + getTotal(ts, p.socketId, nominals), 0) }))
     .sort((a, b) => b.total - a.total);
   const medals = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
 
+  if (ranked.length === 0) return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16 }}>
+      <div style={{ fontSize:48 }}>{"\u274C"}</div>
+      <div style={{ color:"#e63946", fontWeight:700 }}>O{T}yinchilar topilmadi</div>
+      {onRestart && <Btn onClick={onRestart}>{"\uD83C\uDFE0"} Bosh sahifaga</Btn>}
+    </div>
+  );
+
   const downloadCSV = () => {
-    const header = ["№", "O'yinchi", "JAMI", ...topicScoresMock.flatMap((_, ti) => [...nominals.map(n => `${ti+1}-mavzu ${n}`), `TUR (${topicNamesMock[ti] || `${ti+1}-mavzu`})`])];
-    const rows = [...ranked].map((p, i) => [i+1, p.name, p.total, ...topicScoresMock.flatMap(ts => [...nominals.map(n => { const r = ts[p.socketId]?.[n]; return r === "correct" ? n : r === "wrong" ? -n : ""; }), getTotal(ts, p.socketId, nominals)])]);
+    const header = ["\u2116", "O'yinchi", "JAMI", ...topicScoresData.flatMap((_, ti) => [...nominals.map(n => `${ti+1}-mavzu ${n}`), `TUR (${topicNamesData[ti] || `${ti+1}-mavzu`})`])];
+    const rows = [...ranked].map((p, i) => [i+1, p.name, p.total, ...topicScoresData.flatMap(ts => [...nominals.map(n => { const r = ts[p.socketId]?.[n]; return r === "correct" ? n : r === "wrong" ? -n : ""; }), getTotal(ts, p.socketId, nominals)])]);
     const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -111,16 +103,16 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
-          {topicScoresMock.map((tScores, ti) => {
+          {topicScoresData.map((tScores, ti) => {
             const isCollapsed = collapsedTopics.has(ti);
             return (
               <div key={ti} style={{ border: "1px solid #1e2940", borderRadius: 6, overflow: "hidden" }}>
                 <div onClick={() => toggleTopic(ti)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", cursor: "pointer", userSelect: "none", background: isCollapsed ? "#0f1726" : "#161f30", borderBottom: isCollapsed ? "none" : "1px solid #1e2940" }}>
                   <span style={{ fontSize: 11, color: "#445566", display: "inline-block", transition: "transform 0.2s", transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}>{"\u25B6"}</span>
-                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, letterSpacing: "0.06em", color: "#8899aa", flex: 1 }}>{ti + 1}. {topicNamesMock[ti] || `${ti+1}-mavzu`}</span>
+                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, letterSpacing: "0.06em", color: "#8899aa", flex: 1 }}>{ti + 1}. {topicNamesData[ti] || `${ti+1}-mavzu`}</span>
                   <span style={{ fontSize: 10, color: "#445566" }}>tugadi</span>
                 </div>
-                {!isCollapsed && <ScoreBoard scores={tScores} players={playersData} nominals={nominals} currentNominal={null} isHost={false} allTopicScores={topicScoresMock} />}
+                {!isCollapsed && <ScoreBoard scores={tScores} players={playersData} nominals={nominals} currentNominal={null} isHost={false} allTopicScores={topicScoresData} />}
               </div>
             );
           })}

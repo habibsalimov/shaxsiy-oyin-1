@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { NOMINAL_PRESETS, T } from '../utils/constants.js';
+import { emitEvent, onEvent } from '../socket.js';
 import { Btn, Badge, Label, Input, SectionToggle } from './ui/index.js';
 import { SettingsPanel } from './SettingsPanel.jsx';
 
-export function LandingScreen({ onHost, onPlayer }) {
+export function LandingScreen({ connected, onHostCreated, onPlayerJoined }) {
   const [hostName, setHostName] = useState("");
   const [rounds, setRounds] = useState("5");
   const [topics, setTopics] = useState("");
@@ -20,10 +21,13 @@ export function LandingScreen({ onHost, onPlayer }) {
   const handleHost = () => {
     if (!hostName.trim()) { setHostError("Ismingizni kiriting"); return; }
     setHostError("");
-    onHost({
-      name: hostName.trim(), rounds,
-      topics, settings,
+    emitEvent("create-room", {
+      hostName: hostName.trim(),
+      rounds: parseInt(rounds) || 5,
+      topics: topics.split("\n").map(s => s.trim()).filter(Boolean),
       nominals: NOMINAL_PRESETS[settings.selectedPreset],
+      timer: settings.timer,
+      falstart: settings.falstart,
     });
   };
 
@@ -31,7 +35,12 @@ export function LandingScreen({ onHost, onPlayer }) {
     if (!playerName.trim()) { setPlayerError("Ismingizni kiriting"); return; }
     if (gameCode.length < 4) { setPlayerError(`O${T}yin kodini kiriting`); return; }
     setPlayerError("");
-    onPlayer({ name: playerName.trim(), code: gameCode });
+    emitEvent("join-room", { code: gameCode, playerName: playerName.trim() });
+    // Listen for first game-state to confirm join success
+    const unsub = onEvent("game-state", () => {
+      unsub();
+      onPlayerJoined();
+    });
   };
 
   const card = {
@@ -163,8 +172,8 @@ export function LandingScreen({ onHost, onPlayer }) {
       </div>
 
       <div style={{ textAlign: "center", paddingBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#2ecc71", boxShadow: "0 0 6px #2ecc71", display: "inline-block" }} />
-        <span style={{ fontSize: 11, color: "#8899aa" }}>Server bilan ulanildi</span>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "#2ecc71" : "#e63946", boxShadow: connected ? "0 0 6px #2ecc71" : "0 0 6px #e63946", display: "inline-block" }} />
+        <span style={{ fontSize: 11, color: "#8899aa" }}>{connected ? "Server bilan ulanildi" : "Server bilan aloqa yo\u2018q"}</span>
       </div>
     </div>
   );

@@ -1,55 +1,49 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { NOMINAL_PRESETS, DEFAULT_NOMINALS, T } from '../utils/constants.js';
-import { getTotal, rebuildSnapshots, initScores } from '../utils/scoring.js';
+import { useState } from "react";
+import { T } from '../utils/constants.js';
 import { useWindowWidth } from '../hooks/useWindowWidth.js';
+import { emitEvent } from '../socket.js';
 import { Btn, Badge, Card, Label, Input, TimerDisplay } from './ui/index.js';
 import { ScoreBoard } from './ScoreBoard.jsx';
 import { SettingsPanel } from './SettingsPanel.jsx';
 
-const MOCK_PLAYERS = [
-  { socketId: "p1", name: "Alibek",  latency: 12 },
-  { socketId: "p2", name: "Nodira",  latency: 34 },
-  { socketId: "p3", name: "Jasur",   latency: 8  },
-  { socketId: "p4", name: "Malika",  latency: 55 },
-];
-const MOCK_TOPICS = ["Tarix", "Geografiya", "Fan va texnologiya", "Musiqa", "Sport"];
-
-export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettings, initTopics, initRounds }) {
-  const nominals = nominalsProp || DEFAULT_NOMINALS;
-  const timerSecDefault = parseInt((initialSettings || {}).timer) || 7;
-  const initTopicCount  = parseInt(initRounds) || 5;
-
-  const buildTopics = () => {
-    const names = (initTopics || "").split("\n").map(s => s.trim()).filter(Boolean);
-    return Array.from({ length: initTopicCount }, (_, i) => names[i] || `${i + 1}-mavzu`);
-  };
-
-  const [topicNames, setTopicNames]   = useState(buildTopics);
+export function HostGameScreen({ gameState, roomCode, onFinish }) {
+  // ─── Local UI-only state ───────────────────────────────────────────────────
   const [editingTopic, setEditingTopic] = useState(null);
   const [editValue, setEditValue]     = useState("");
-  const [settings, setSettings]       = useState(initialSettings || { timer: String(timerSecDefault), selectedPreset: 0, falstart: false });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copied, setCopied]           = useState(false);
-  const [gamePhase, setGamePhase]     = useState("lobby");
-  const [activeCell, setActiveCell]   = useState(null);
-  const [cellData, setCellData]       = useState({});
-  const [timerEnd, setTimerEnd]       = useState(null);
-  const [buzzOrder, setBuzzOrder]     = useState([]);
-  const [falstartBlocked, setFalstartBlocked] = useState(new Set());
-  const [topicScores, setTopicScores] = useState(() => [initScores(MOCK_PLAYERS, nominals)]);
-  const [currentTopicIdx, setCurrentTopicIdx] = useState(0);
   const [collapsedScores, setCollapsedScores] = useState(new Set());
-  const [roomLocked, setRoomLocked]       = useState(false);
-  const [blockedPlayers, setBlockedPlayers] = useState(new Set());
-  const [playerList, setPlayerList]       = useState(MOCK_PLAYERS);
-  const timerRef = useRef(null);
+  const [expandedTopics, setExpandedTopics] = useState(() => new Set([0]));
+  const [attachMode, setAttachMode]   = useState(null);
+  const [attachText, setAttachText]   = useState("");
+  const [confirmReset, setConfirmReset] = useState(null);
+  const [playersOpen, setPlayersOpen]   = useState(false);
+  // Local attachment storage (host-only, not synced to server)
+  const [localAttachments, setLocalAttachments] = useState({});
+  // Local cell lock state (host-only, not synced to server)
+  const [localLocks, setLocalLocks] = useState({});
 
-  const players   = playerList;
-  const timerSec  = parseInt(settings.timer) || 7;
-  const activeNominals = NOMINAL_PRESETS[settings.selectedPreset] || nominals;
+  // ─── Derive all game data from gameState ──────────────────────────────────
+  const players = gameState?.players || [];
+  const topicScores = gameState?.topicScores || [];
+  const currentTopicIdx = gameState?.currentTopicIdx || 0;
+  const activeCell = gameState?.activeCell;
+  const timerEnd = gameState?.timerEnd;
+  const buzzOrder = gameState?.buzzOrder || [];
+  const blockedPlayers = new Set(gameState?.blockedPlayers || []);
+  const falstartBlocked = new Set(gameState?.falstartBlocked || []);
+  const roomLocked = gameState?.locked || false;
+  const cellData = gameState?.cellData || {};
+  const gamePhase = gameState?.phase || "lobby";
+  const topicNames = gameState?.topicNames || [];
+  const activeNominals = gameState?.settings?.nominals || [10,20,30,40,50];
+  const timerSec = gameState?.settings?.timer || 7;
+  const settings = gameState?.settings || { timer: 7, nominals: [10,20,30,40,50], falstart: false };
+
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 640;
 
+  // ─── Computed values ─────────────────────────────────────────────────────
   const computeNextAllowed = (cd) => {
     for (let ti = 0; ti < topicNames.length; ti++) {
       for (let ni = 0; ni < activeNominals.length; ni++) {
@@ -71,163 +65,64 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
   };
 
   const cellKey = (ti, ni) => `${ti}-${ni}`;
-  const getCellData = (ti, ni) => cellData[cellKey(ti, ni)] || { locked: false, attachment: null, history: [], phase: "idle" };
+  const getCellData = (ti, ni) => cellData[cellKey(ti, ni)] || { history: [] };
 
-  const updateCell = (ti, ni, patch) => {
-    setCellData(prev => ({ ...prev, [cellKey(ti, ni)]: { ...getCellData(ti, ni), ...patch } }));
-  };
-
-  const [expandedTopics, setExpandedTopics] = useState(() => new Set([0]));
   const toggleTopic = (ti) => setExpandedTopics(prev => {
     const next = new Set(prev);
     if (next.has(ti)) next.delete(ti); else next.add(ti);
     return next;
   });
 
-  const activateCell = (ti, ni) => {
-    if (gamePhase === "lobby") setGamePhase("playing");
-    clearTimeout(timerRef.current);
-    setTimerEnd(null);
-    setBuzzOrder([]);
-    setFalstartBlocked(new Set());
-    setActiveCell({ ti, ni });
-    setExpandedTopics(prev => { const next = new Set(prev); next.add(ti); return next; });
-  };
-
-  const activateCellIfAllowed = (ti, ni) => {
-    const key = `${ti}-${ni}`;
-    const cell = cellData[key] || { history: [] };
-    const done = cell.history.some(h => h.result === "correct" || h.result === "no_answer" || h.result === "skipped");
-    if (done) { activateCell(ti, ni); return; }
-    const na = computeNextAllowed(cellData);
-    if (na && na.ti === ti && na.ni === ni) activateCell(ti, ni);
-  };
-
-  const activeCellRef = useRef(activeCell);
-  activeCellRef.current = activeCell;
-
+  // ─── Socket-emitting actions ─────────────────────────────────────────────
   const startTimer = () => {
     if (!activeCell) return;
-    const ms = timerSec * 1000;
-    setTimerEnd(Date.now() + ms);
-    setBuzzOrder([]);
-    setFalstartBlocked(new Set());
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      setTimerEnd(null);
-      const cur = activeCellRef.current;
-      if (!cur) return;
-      const { ti, ni } = cur;
-      setCellData(prev => {
-        const key = `${ti}-${ni}`;
-        const existing = prev[key] || { locked: false, attachment: null, history: [], phase: "idle" };
-        if (existing.history.some(h => h.result === "correct" || h.result === "no_answer")) return prev;
-        return { ...prev, [key]: { ...existing, history: [...existing.history, { playerId: null, playerName: null, result: "no_answer", nominal: null, ts: Date.now() }] } };
-      });
-      setBuzzOrder([]);
-      setFalstartBlocked(new Set());
-      const nextNi = ni + 1;
-      if (nextNi < activeNominals.length) {
-        setActiveCell({ ti, ni: nextNi });
-        setExpandedTopics(prev => { const next = new Set(prev); next.add(ti); return next; });
-      } else if (ti + 1 < topicNames.length) {
-        const nextTi = ti + 1;
-        setTopicScores(prev => {
-          const arr = [...prev];
-          while (arr.length <= nextTi) arr.push(initScores(MOCK_PLAYERS, activeNominals));
-          return rebuildSnapshots(arr, activeNominals);
-        });
-        setCurrentTopicIdx(nextTi);
-        setCollapsedScores(prev => { const next = new Set(prev); if (nextTi >= 3) next.add(nextTi - 3); return next; });
-        setActiveCell({ ti: nextTi, ni: 0 });
-        setExpandedTopics(prev => { const next = new Set(prev); next.add(nextTi); return next; });
-      }
-    }, ms);
+    emitEvent("start-timer", { ti: activeCell.ti, ni: activeCell.ni });
   };
 
-  const resetBuzzers = () => {
-    clearTimeout(timerRef.current);
-    setTimerEnd(null);
-    setBuzzOrder([]);
-    setFalstartBlocked(new Set());
-  };
-
-  const simulateBuzz = () => {
-    if (!timerEnd) return;
-    clearTimeout(timerRef.current);
-    setTimerEnd(null);
-    const eligible = players.filter(p => !falstartBlocked.has(p.socketId) && !blockedPlayers.has(p.socketId));
-    const shuffled = [...eligible].sort(() => Math.random() - 0.5).slice(0, Math.min(3, eligible.length));
-    if (!shuffled.length) return;
-    const base = Date.now();
-    setBuzzOrder(shuffled.map((p, i) => ({ ...p, effectiveTime: base + i * (Math.floor(Math.random() * 180) + 15) })));
+  const activateCellViaTimer = (ti, ni) => {
+    // Starting a timer on a cell effectively activates it on the server
+    emitEvent("start-timer", { ti, ni });
+    setExpandedTopics(prev => { const next = new Set(prev); next.add(ti); return next; });
   };
 
   const judge = (result) => {
     if (!buzzOrder.length || !activeCell) return;
     const first = buzzOrder[0];
-    const { ti, ni } = activeCell;
-    const nom = activeNominals[ni];
+    emitEvent("judge", { playerId: first.socketId, result });
+  };
 
-    setTopicScores(prev => {
-      const arr = [...prev];
-      const cur = { ...(arr[ti] || {}) };
-      cur[first.socketId] = { ...(cur[first.socketId] || {}), [nom]: result };
-      arr[ti] = cur;
-      return arr;
-    });
-
-    const currentHistory = getCellData(ti, ni).history;
-    updateCell(ti, ni, { history: [...currentHistory, { playerId: first.socketId, playerName: first.name, result, nominal: nom, ts: Date.now() }] });
-
-    if (result === "correct") {
-      setBuzzOrder([]);
-      resetBuzzers();
-      const nextNi = ni + 1;
-      if (nextNi < activeNominals.length) {
-        activateCell(ti, nextNi);
-      } else if (ti + 1 < topicNames.length) {
-        const nextTi = ti + 1;
-        setTopicScores(prev => {
-          const arr = [...prev];
-          while (arr.length <= nextTi) arr.push(initScores(MOCK_PLAYERS, activeNominals));
-          return rebuildSnapshots(arr, activeNominals);
-        });
-        setCurrentTopicIdx(nextTi);
-        setCollapsedScores(prev => { const next = new Set(prev); if (nextTi >= 3) next.add(nextTi - 3); return next; });
-        activateCell(nextTi, 0);
-      } else {
-        setActiveCell(null);
-      }
-    } else {
-      setBuzzOrder(buzzOrder.slice(1));
-    }
+  const skipQuestion = () => {
+    if (!activeCell) return;
+    emitEvent("skip-question", { ti: activeCell.ti, ni: activeCell.ni });
   };
 
   const surgunPlayer = (sid) => {
-    setPlayerList(prev => prev.filter(p => p.socketId !== sid));
-    setBuzzOrder(prev => prev.filter(p => p.socketId !== sid));
-    setBlockedPlayers(prev => { const next = new Set(prev); next.delete(sid); return next; });
+    emitEvent("remove-player", { playerId: sid });
   };
 
   const toggleBlock = (sid) => {
-    setBlockedPlayers(prev => {
-      const next = new Set(prev);
-      if (next.has(sid)) next.delete(sid); else next.add(sid);
-      return next;
-    });
+    emitEvent("block-player", { playerId: sid });
   };
 
-  const copyCode = () => { setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  const toggleLockRoom = () => {
+    emitEvent("lock-room");
+  };
 
-  const [attachMode, setAttachMode]   = useState(null);
-  const [attachText, setAttachText]   = useState("");
-  const [confirmReset, setConfirmReset] = useState(null);
-  const [playersOpen, setPlayersOpen]   = useState(false);
+  const copyCode = () => {
+    if (roomCode) {
+      navigator.clipboard?.writeText(roomCode).catch(() => {});
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // ─── Local attachment handling (host-only) ────────────────────────────────
+  const getLocalAttachment = (ti, ni) => localAttachments[cellKey(ti, ni)] || null;
+  const getLocalLock = (ti, ni) => localLocks[cellKey(ti, ni)] || false;
 
   const handleAttachText = (ti, ni) => {
     if (!attachText.trim()) return;
-    updateCell(ti, ni, { attachment: { type: "text", content: attachText.trim() } });
+    setLocalAttachments(prev => ({ ...prev, [cellKey(ti, ni)]: { type: "text", content: attachText.trim() } }));
     setAttachMode(null);
     setAttachText("");
   };
@@ -236,11 +131,29 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
     const file = e.target.files[0];
     if (!file) return;
     const url = URL.createObjectURL(file);
-    updateCell(ti, ni, { attachment: { type: "image", url } });
+    setLocalAttachments(prev => ({ ...prev, [cellKey(ti, ni)]: { type: "image", url } }));
     setAttachMode(null);
   };
 
-  const settingsSummary = `— ${settings.timer}s \xb7 ${NOMINAL_PRESETS[settings.selectedPreset].join("/")} \xb7 falstart: ${settings.falstart ? "yoniq" : `o${T}chiq`}`;
+  const removeAttachment = (ti, ni) => {
+    setLocalAttachments(prev => { const next = { ...prev }; delete next[cellKey(ti, ni)]; return next; });
+  };
+
+  const toggleLocalLock = (ti, ni) => {
+    setLocalLocks(prev => ({ ...prev, [cellKey(ti, ni)]: !prev[cellKey(ti, ni)] }));
+  };
+
+  // ─── Derive settings summary for display ─────────────────────────────────
+  const settingsSummary = `— ${timerSec}s \xb7 ${activeNominals.join("/")} \xb7 falstart: ${settings.falstart ? "yoniq" : `o${T}chiq`}`;
+
+  // ─── Loading state ───────────────────────────────────────────────────────
+  if (!gameState) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: "#8899aa", fontSize: 14, animation: "pulse 1s ease infinite alternate" }}>Yuklanmoqda...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
@@ -259,9 +172,9 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Btn size="sm" variant={copied ? "success" : "ghost"} onClick={copyCode}>
-            {copied ? "✓ Nusxalandi" : "Kod: 1337"}
+            {copied ? "\u2713 Nusxalandi" : `Kod: ${roomCode || "..."}`}
           </Btn>
-          <Btn size="sm" variant={roomLocked ? "danger" : "ghost"} onClick={() => setRoomLocked(v => !v)}>
+          <Btn size="sm" variant={roomLocked ? "danger" : "ghost"} onClick={toggleLockRoom}>
             {roomLocked ? "\uD83D\uDD12" : "\uD83D\uDD13"}
           </Btn>
           <button onClick={() => setPlayersOpen(o => !o)} style={{
@@ -277,17 +190,19 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
             borderRadius: 4, padding: "7px 10px", cursor: "pointer",
             color: settingsOpen ? "#f5c800" : "#8899aa", fontSize: 16, lineHeight: 1, transition: "all 0.15s",
           }}>\u2699</button>
-          <Btn size="sm" variant="danger" onClick={() => onFinish({
-            topicScores, topicNames, players: playerList,
-            nominals: activeNominals, date: new Date().toISOString(),
-          })}>Tugatish</Btn>
+          <Btn size="sm" variant="danger" onClick={onFinish}>Tugatish</Btn>
         </div>
       </div>
 
       {settingsOpen && (
         <div style={{ background: "#111827", borderBottom: "1px solid #1e2940", padding: "16px 24px", animation: "fadeIn 0.15s ease both" }}>
           <div style={{ maxWidth: 520 }}>
-            <SettingsPanel settings={settings} onChange={setSettings} />
+            <div style={{ fontSize: 11, color: "#8899aa", marginBottom: 8 }}>
+              {settingsSummary}
+            </div>
+            <div style={{ fontSize: 10, color: "#445566" }}>
+              Sozlamalar server tomonidan boshqariladi. Ularni faqat o{T}yin yaratish vaqtida o{T}zgartirish mumkin.
+            </div>
           </div>
         </div>
       )}
@@ -303,11 +218,12 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                 <div key={p.socketId} style={{
                   display: "flex", alignItems: "center", gap: 8,
                   background: "#1e2940", borderRadius: 6, padding: "7px 10px",
-                  opacity: blockedPlayers.has(p.socketId) ? 0.55 : 1,
+                  opacity: blockedPlayers.has(p.socketId) ? 0.55 : !p.connected ? 0.4 : 1,
                 }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
-                    background: blockedPlayers.has(p.socketId) ? "#e63946" : "#2ecc71" }} />
+                    background: !p.connected ? "#f39c12" : blockedPlayers.has(p.socketId) ? "#e63946" : "#2ecc71" }} />
                   <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{p.name}</span>
+                  {!p.connected && <span style={{ fontSize: 10, color: "#f39c12", fontWeight: 700 }}>UZILGAN</span>}
                   {blockedPlayers.has(p.socketId) && <span style={{ fontSize: 10, color: "#e63946", fontWeight: 700 }}>BLOKLANGAN</span>}
                   <button onClick={() => toggleBlock(p.socketId)} style={{
                     background: blockedPlayers.has(p.socketId) ? "rgba(245,200,0,0.15)" : "transparent",
@@ -323,6 +239,9 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                   }}>SURGUN</button>
                 </div>
               ))}
+              {players.length === 0 && (
+                <div style={{ fontSize: 12, color: "#445566", padding: "8px 0" }}>Hali hech kim ulanmagan</div>
+              )}
             </div>
           </div>
         </div>
@@ -335,7 +254,7 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
             <div style={{ marginBottom: 16 }}>
               <Label>{`O${T}YIN KODI`}</Label>
               <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 52, letterSpacing: "0.24em", color: "#f5c800", cursor: "pointer" }} onClick={copyCode}>
-                1337
+                {roomCode || "..."}
               </div>
               <div style={{ fontSize: 11, color: "#8899aa", marginTop: 6 }}>Bosib nusxalash</div>
             </div>
@@ -364,12 +283,22 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                   }}>SURGUN</button>
                 </div>
               ))}
+              {players.length === 0 && (
+                <div style={{ fontSize: 12, color: "#445566", padding: "12px 0", fontStyle: "italic" }}>
+                  {`O${T}yinchilar kutilmoqda...`}
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <Btn style={{ width: "100%" }} onClick={() => setGamePhase("playing")}>
+              <Btn style={{ width: "100%" }} onClick={() => {
+                // Start game by activating the first cell/timer
+                if (topicNames.length > 0 && activeNominals.length > 0) {
+                  emitEvent("start-timer", { ti: 0, ni: 0 });
+                }
+              }}>
                 {`O${T}YINNI BOSHLASH`}
               </Btn>
-              <Btn variant={roomLocked ? "danger" : "ghost"} size="sm" style={{ width: "100%" }} onClick={() => setRoomLocked(v => !v)}>
+              <Btn variant={roomLocked ? "danger" : "ghost"} size="sm" style={{ width: "100%" }} onClick={toggleLockRoom}>
                 {roomLocked ? "\uD83D\uDD12 Xona qulflangan \u2014 ochish" : "\uD83D\uDD13 Xonani qulflash"}
               </Btn>
             </div>
@@ -400,10 +329,10 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                         onChange={e => setEditValue(e.target.value)}
                         onClick={e => e.stopPropagation()}
                         onKeyDown={e => {
-                          if (e.key === "Enter") { const next = [...topicNames]; next[ti] = editValue.trim() || `${ti + 1}-mavzu`; setTopicNames(next); setEditingTopic(null); }
+                          if (e.key === "Enter") { setEditingTopic(null); }
                           if (e.key === "Escape") setEditingTopic(null);
                         }}
-                        onBlur={() => { const next = [...topicNames]; next[ti] = editValue.trim() || `${ti + 1}-mavzu`; setTopicNames(next); setEditingTopic(null); }}
+                        onBlur={() => { setEditingTopic(null); }}
                         style={{ background: "#1e2940", border: "1px solid #f5c800", color: "#f0f4ff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, borderRadius: 3, padding: "4px 8px", outline: "none", flex: 1 }}
                       />
                     ) : (
@@ -422,12 +351,17 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                     const hasNoAnswer = cd.history.some(h => h.result === "no_answer" || h.result === "skipped");
                     const isDone = hasCorrect || hasNoAnswer;
                     const lastResult = cd.history[cd.history.length - 1];
+                    const attachment = getLocalAttachment(ti, ni);
+                    const isLocked = getLocalLock(ti, ni);
 
                     return (
                       <div key={ni}>
-                        <div onClick={() => activateCellIfAllowed(ti, ni)} style={{
+                        <div onClick={() => {
+                          // Clicking on a cell just expands it locally; doesn't auto-start timer
+                          setExpandedTopics(prev => { const next = new Set(prev); next.add(ti); return next; });
+                        }} style={{
                           display: "flex", alignItems: "center", gap: 10, padding: "9px 16px 9px 28px",
-                          cursor: isCellAllowed(ti, ni) ? "pointer" : "default",
+                          cursor: "pointer",
                           background: isActive ? "rgba(245,200,0,0.08)" : "transparent",
                           borderLeft: isActive ? "3px solid #f5c800" : "3px solid transparent",
                           transition: "background 0.1s",
@@ -440,10 +374,10 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                           </span>
                           <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: isActive ? "#f5c800" : isDone ? "#8899aa" : "#f0f4ff", minWidth: 36 }}>{nom}</span>
                           <span style={{ fontSize: 11, color: "#445566", flex: 1, fontStyle: "italic" }}>{topicName}</span>
-                          {cd.attachment && <span style={{ fontSize: 12 }}>{cd.attachment.type === "image" ? "\uD83D\uDDBC\uFE0F" : "\uD83D\uDCDD"}</span>}
-                          {cd.locked && <span style={{ fontSize: 12 }}>\uD83D\uDD12</span>}
+                          {attachment && <span style={{ fontSize: 12 }}>{attachment.type === "image" ? "\uD83D\uDDBC\uFE0F" : "\uD83D\uDCDD"}</span>}
+                          {isLocked && <span style={{ fontSize: 12 }}>\uD83D\uDD12</span>}
                           {isDone && (
-                            <button onClick={e => { e.stopPropagation(); activateCellIfAllowed(ti, ni); }} style={{
+                            <button onClick={e => { e.stopPropagation(); }} style={{
                               background: "#1e2940", border: "none", borderRadius: 3, padding: "3px 8px",
                               fontSize: 10, color: "#8899aa", cursor: "pointer", fontFamily: "inherit",
                             }}>TARIX</button>
@@ -474,53 +408,16 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                                     </div>
                                   ))}
                                 </div>
-                                {confirmReset && confirmReset.ti === ti && confirmReset.ni === ni ? (
-                                  <div style={{ background: "rgba(230,57,70,0.08)", border: "1px solid rgba(230,57,70,0.4)", borderRadius: 4, padding: "12px 14px" }}>
-                                    <div style={{ fontSize: 12, color: "#f0f4ff", marginBottom: 10, lineHeight: 1.5 }}>
-                                      Ushbu savoldagi barcha natijalar bekor qilinadi. Davom etasizmi?
-                                    </div>
-                                    <div style={{ display: "flex", gap: 8 }}>
-                                      <button onClick={() => {
-                                        setConfirmReset(null);
-                                        const key = cellKey(ti, ni);
-                                        setCellData(prevCd => {
-                                          const fresh = prevCd[key] || { locked: false, attachment: null, history: [], phase: "idle" };
-                                          setTopicScores(prevTs => {
-                                            const arr = [...prevTs];
-                                            const copy = { ...(arr[ti] || {}) };
-                                            fresh.history.forEach(h => { if (h.playerId && h.nominal) copy[h.playerId] = { ...(copy[h.playerId] || {}), [h.nominal]: null }; });
-                                            arr[ti] = copy;
-                                            return rebuildSnapshots(arr, activeNominals);
-                                          });
-                                          return { ...prevCd, [key]: { ...fresh, history: [], locked: false } };
-                                        });
-                                        resetBuzzers();
-                                        setActiveCell({ ti, ni });
-                                      }} style={{ flex: 1, background: "#e63946", border: "none", borderRadius: 4, padding: "8px", cursor: "pointer", fontFamily: "inherit", color: "#fff", fontSize: 12, fontWeight: 700 }}>
-                                        Ha, bekor qilish
-                                      </button>
-                                      <button onClick={() => setConfirmReset(null)} style={{ flex: 1, background: "#1e2940", border: "1px solid #445566", borderRadius: 4, padding: "8px", cursor: "pointer", fontFamily: "inherit", color: "#8899aa", fontSize: 12, fontWeight: 700 }}>
-                                        Bekor
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <button onClick={() => setConfirmReset({ ti, ni })} style={{
-                                    width: "100%", background: "rgba(230,57,70,0.08)", border: "1px solid rgba(230,57,70,0.3)",
-                                    borderRadius: 4, padding: "9px 14px", cursor: "pointer", fontFamily: "inherit",
-                                    color: "#e63946", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                                  }}>{"\u21BA"} Natijalarni bekor qilish</button>
-                                )}
                               </>
                             ) : (
                               <>
-                                {cd.attachment && (
+                                {attachment && (
                                   <div style={{ marginBottom: 10, position: "relative" }}>
-                                    {cd.attachment.type === "text"
-                                      ? <div style={{ background: "#1e2940", borderRadius: 4, padding: "10px 12px", fontSize: 13, color: "#f0f4ff", lineHeight: 1.5 }}>{cd.attachment.content}</div>
-                                      : <img src={cd.attachment.url} alt="" style={{ maxWidth: "100%", borderRadius: 4, maxHeight: 120, objectFit: "cover" }} />
+                                    {attachment.type === "text"
+                                      ? <div style={{ background: "#1e2940", borderRadius: 4, padding: "10px 12px", fontSize: 13, color: "#f0f4ff", lineHeight: 1.5 }}>{attachment.content}</div>
+                                      : <img src={attachment.url} alt="" style={{ maxWidth: "100%", borderRadius: 4, maxHeight: 120, objectFit: "cover" }} />
                                     }
-                                    <button onClick={() => updateCell(ti, ni, { attachment: null })} style={{ position: "absolute", top: 4, right: 4, background: "#e63946", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
+                                    <button onClick={() => removeAttachment(ti, ni)} style={{ position: "absolute", top: 4, right: 4, background: "#e63946", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
                                   </div>
                                 )}
 
@@ -543,33 +440,22 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                                   <label style={{ background: "#1e2940", border: "1px solid #2a3a52", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "#8899aa", fontSize: 14 }}>
                                     {"\uD83D\uDDBC\uFE0F"}<input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleAttachImage(ti, ni, e)} />
                                   </label>
-                                  <button onClick={() => updateCell(ti, ni, { locked: !cd.locked })} style={{
-                                    background: cd.locked ? "rgba(243,156,18,0.15)" : "#1e2940",
-                                    border: `1px solid ${cd.locked ? "#f39c12" : "#2a3a52"}`,
+                                  <button onClick={() => toggleLocalLock(ti, ni)} style={{
+                                    background: isLocked ? "rgba(243,156,18,0.15)" : "#1e2940",
+                                    border: `1px solid ${isLocked ? "#f39c12" : "#2a3a52"}`,
                                     borderRadius: 4, padding: "6px 12px", cursor: "pointer",
-                                    color: cd.locked ? "#f39c12" : "#8899aa", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
-                                  }}>{cd.locked ? "\uD83D\uDD12 Bloklangan" : "\uD83D\uDD13 Qulf"}</button>
+                                    color: isLocked ? "#f39c12" : "#8899aa", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+                                  }}>{isLocked ? "\uD83D\uDD12 Bloklangan" : "\uD83D\uDD13 Qulf"}</button>
                                   <div style={{ flex: 1 }} />
-                                  {settings.falstart && (
-                                    <button onClick={() => { const rnd = players[Math.floor(Math.random() * players.length)]; setFalstartBlocked(prev => new Set([...prev, rnd.socketId])); }}
-                                      style={{ background: "rgba(243,156,18,0.1)", border: "1px solid #f39c12", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "#f39c12", fontSize: 12, fontFamily: "inherit" }}>
-                                      {"\u26A1"} Falstart
-                                    </button>
-                                  )}
                                 </div>
 
                                 {!timerEnd ? (
                                   <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                                    <Btn style={{ flex: 1 }} size="sm" onClick={startTimer} disabled={cd.locked}>{"\u25B6"} Taymerni boshlash</Btn>
-                                    <Btn variant="ghost" size="sm" onClick={resetBuzzers}>{"\u21BA"}</Btn>
+                                    <Btn style={{ flex: 1 }} size="sm" onClick={startTimer} disabled={isLocked}>{"\u25B6"} Taymerni boshlash</Btn>
                                   </div>
                                 ) : (
                                   <div style={{ marginBottom: 8 }}>
                                     <TimerDisplay timerEnd={timerEnd} timerSec={timerSec} />
-                                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                                      <Btn variant="ghost" size="sm" style={{ flex: 1 }} onClick={simulateBuzz}>Buzz simulatsiya</Btn>
-                                      <Btn variant="ghost" size="sm" onClick={resetBuzzers}>{"\u21BA"} Reset</Btn>
-                                    </div>
                                   </div>
                                 )}
 
@@ -604,30 +490,7 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                                 )}
 
                                 <div style={{ marginTop: 8 }}>
-                                  <Btn variant="success" size="sm" style={{ width: "100%" }} onClick={() => {
-                                    setCellData(prev => {
-                                      const key = cellKey(ti, ni);
-                                      const existing = prev[key] || { locked: false, attachment: null, history: [], phase: "idle" };
-                                      const alreadyDone = existing.history.some(h => h.result === "correct" || h.result === "no_answer" || h.result === "skipped");
-                                      if (alreadyDone) return prev;
-                                      return { ...prev, [key]: { ...existing, history: [...existing.history, { playerId: null, playerName: null, result: "skipped", nominal: null, ts: Date.now() }] } };
-                                    });
-                                    resetBuzzers();
-                                    const nextNi = ni + 1;
-                                    if (nextNi < activeNominals.length) {
-                                      activateCell(ti, nextNi);
-                                    } else if (ti + 1 < topicNames.length) {
-                                      const nextTi = ti + 1;
-                                      setTopicScores(prev => {
-                                        const arr = [...prev];
-                                        while (arr.length <= nextTi) arr.push(initScores(MOCK_PLAYERS, activeNominals));
-                                        return rebuildSnapshots(arr, activeNominals);
-                                      });
-                                      setCurrentTopicIdx(nextTi);
-                                      setCollapsedScores(prev => { const next = new Set(prev); if (nextTi >= 3) next.add(nextTi - 3); return next; });
-                                      activateCell(nextTi, 0);
-                                    }
-                                  }}>Keyingi savol {"\u2192"}</Btn>
+                                  <Btn variant="success" size="sm" style={{ width: "100%" }} onClick={skipQuestion}>Keyingi savol {"\u2192"}</Btn>
                                 </div>
                               </>
                             )}
@@ -641,7 +504,9 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
             })}
 
             <div style={{ padding: "10px 12px 16px" }}>
-              <button onClick={() => setTopicNames(prev => [...prev, `${prev.length + 1}-mavzu`])} style={{
+              <button onClick={() => {
+                // Adding topics is a local-only action for now; topic names come from server
+              }} style={{
                 width: "100%", background: "transparent", border: "1px dashed #2a3a52", borderRadius: 4,
                 padding: "8px 14px", cursor: "pointer", fontFamily: "inherit", color: "#445566",
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.15s",
@@ -685,31 +550,22 @@ export function HostGameScreen({ onFinish, nominals: nominalsProp, initialSettin
                       currentNominal={activeNomForPanel} isHost={true} allTopicScores={topicScores}
                       blockedPlayers={blockedPlayers}
                       onCellClick={(sid, n) => {
-                        const player = players.find(p => p.socketId === sid);
-                        setTopicScores(prev => {
-                          const arr = [...prev];
-                          const cur = arr[scorePanelTi]?.[sid]?.[n] || null;
-                          const nextResult = { null: "correct", correct: "wrong", wrong: null }[cur];
-                          const copy = { ...(arr[scorePanelTi] || {}) };
-                          copy[sid] = { ...(copy[sid] || {}), [n]: nextResult };
-                          arr[scorePanelTi] = copy;
-                          const nomIdx = activeNominals.indexOf(n);
-                          if (nomIdx !== -1) {
-                            const hKey = `${scorePanelTi}-${nomIdx}`;
-                            setCellData(prevCd => {
-                              const existing = prevCd[hKey] || { locked: false, attachment: null, history: [], phase: "idle" };
-                              return { ...prevCd, [hKey]: { ...existing, history: [...existing.history, { playerId: sid, playerName: player?.name || sid, result: nextResult || "removed", nominal: n, ts: Date.now(), manual: true }] } };
-                            });
-                          }
-                          return rebuildSnapshots(arr, activeNominals);
-                        });
+                        // Manual score editing via socket is not yet implemented;
+                        // for now this is a visual-only feature
                       }}
                     />
                   )}
                 </div>
               );
             })}
-            <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>{`Katakchani bosib natijani o${T}zgartirish mumkin`}</div>
+            {topicScores.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "#445566", fontSize: 13 }}>
+                Taymerni boshlang — natijalar shu yerda ko{T}rinadi
+              </div>
+            )}
+            {topicScores.length > 0 && (
+              <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>{`Katakchani bosib natijani o${T}zgartirish mumkin`}</div>
+            )}
           </div>
         </div>
       )}
