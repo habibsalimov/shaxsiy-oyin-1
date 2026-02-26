@@ -21,6 +21,8 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined }) {
   const handleHost = () => {
     if (!hostName.trim()) { setHostError("Ismingizni kiriting"); return; }
     setHostError("");
+    // Store host name so reconnect handler can use it
+    sessionStorage.setItem("game-session-pending", JSON.stringify({ isHost: true, playerName: hostName.trim() }));
     emitEvent("create-room", {
       hostName: hostName.trim(),
       rounds: parseInt(rounds) || 5,
@@ -39,6 +41,8 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined }) {
     // Listen for first game-state to confirm join success
     const unsub = onEvent("game-state", () => {
       unsub();
+      // Store player session for reconnect
+      sessionStorage.setItem("game-session", JSON.stringify({ roomCode: gameCode, isHost: false, playerName: playerName.trim() }));
       onPlayerJoined();
     });
   };

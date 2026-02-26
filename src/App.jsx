@@ -71,10 +71,35 @@ export default function App() {
       setRoomCode(code);
       setIsHost(true);
       setScreen("hostGame");
+      // Grab host name from pending session if available
+      let hostName = "Host";
+      try {
+        const pending = JSON.parse(sessionStorage.getItem("game-session-pending") || "null");
+        if (pending && pending.playerName) hostName = pending.playerName;
+        sessionStorage.removeItem("game-session-pending");
+      } catch (e) {}
+      sessionStorage.setItem("game-session", JSON.stringify({ roomCode: code, isHost: true, playerName: hostName }));
     });
 
     const unsub2 = onEvent("game-state", (state) => {
       setGameState(state);
+      // If we're on landing and receive game-state, we were reconnected — restore screen
+      // Use a function setter to get current screen value
+      setScreen(prev => {
+        if (prev === "landing") {
+          const session = JSON.parse(sessionStorage.getItem("game-session") || "null");
+          if (session) {
+            if (session.isHost) {
+              setRoomCode(state.code);
+              setIsHost(true);
+              return "hostGame";
+            } else {
+              return "playerGame";
+            }
+          }
+        }
+        return prev;
+      });
     });
 
     const unsub3 = onEvent("game-finished", ({ finalResult }) => {
@@ -84,6 +109,7 @@ export default function App() {
       setArchiveId(id);
       setGameResult(record);
       setScreen("results");
+      sessionStorage.removeItem("game-session");
     });
 
     const unsub4 = onEvent("error", ({ message }) => {
@@ -156,6 +182,7 @@ export default function App() {
               setGameState(null);
               setRoomCode(null);
               setIsHost(false);
+              sessionStorage.removeItem("game-session");
             }}
           />
         )}

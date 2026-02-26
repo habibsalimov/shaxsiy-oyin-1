@@ -15,6 +15,24 @@ export function getSocket() {
     socket.on("ping-latency", (ts) => {
       socket.emit("pong-latency", ts);
     });
+
+    // Auto-rejoin room on reconnect using saved session
+    socket.on("connect", () => {
+      const raw = sessionStorage.getItem("game-session");
+      if (!raw) return;
+      try {
+        const session = JSON.parse(raw);
+        if (session && session.roomCode) {
+          socket.emit("join-room", {
+            code: session.roomCode,
+            playerName: session.playerName || "Host",
+            isHost: !!session.isHost,
+          });
+        }
+      } catch (e) {
+        // Corrupt session data, ignore
+      }
+    });
   }
   return socket;
 }

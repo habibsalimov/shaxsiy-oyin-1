@@ -50,9 +50,19 @@ export class GameManager {
     return { code, room };
   }
 
-  joinRoom(socketId, { code, playerName }) {
+  joinRoom(socketId, { code, playerName, isHost }) {
     const room = this.rooms.get(code);
     if (!room) return { error: "Xona topilmadi" };
+
+    // Host reconnection: update hostSocketId
+    if (isHost && room.hostName === playerName) {
+      const oldHostId = room.hostSocketId;
+      this.socketToRoom.delete(oldHostId);
+      room.hostSocketId = socketId;
+      this.socketToRoom.set(socketId, code);
+      return { room, reconnected: true, isHost: true };
+    }
+
     if (room.locked) return { error: "Xona qulflangan" };
     if (room.players.some(p => p.socketId === socketId)) return { error: "Siz allaqachon xonadasiz" };
 

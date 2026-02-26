@@ -4,72 +4,103 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-"Shaxsiy O'yin" — a single-page React app for running Zakovat quiz club individual games. A host creates a game with configurable topics, score nominals, timer, and falstart rules. Players buzz in to answer questions, and scores are tracked per-topic with running grand totals. Results are saved to localStorage and shareable via URL hash.
+"Shaxsiy O'yin" -- a real-time multiplayer React app for running Zakovat quiz club individual games. A host creates a game room with configurable topics, score nominals, timer, and falstart rules. Players join via a 4-digit room code and buzz in to answer questions. Scores are tracked per-topic with running grand totals. The server manages all game state; clients communicate via Socket.IO.
 
-**Language:** All UI text is in Uzbek (Latin script). The `T` constant (`'\u2018'`) is used for the Uzbek apostrophe character (o'yin → o\u2018yin).
+**Language:** All UI text is in Uzbek (Latin script). The `T` constant (`'\u2018'`) is used for the Uzbek apostrophe character (o'yin -> o\u2018yin).
 
 ## Commands
 
 ```bash
-# Install (no lockfile exists — generates a fresh one)
+# Install dependencies
 npm install
 
-# Development server (Vite, default port 5173)
+# Development (starts Vite on :5173 and Express/Socket.IO backend on :3001 via concurrently)
 npm run dev
 
-# Production build (outputs to dist/)
+# Production build (Vite outputs to dist/)
 npm run build
 
-# Preview production build
+# Production server (Express serves static files + WebSocket on port 3001)
+npm start
+
+# Preview Vite build locally
 npm run preview
 ```
 
-**Note:** The `package.json` is named `package-json.json` and the HTML entry point is `index-html.html` — these non-standard filenames need renaming to `package.json` and `index.html` respectively for Vite to work.
-
 ## Tech Stack
 
-React 18 + Vite 5 with `@vitejs/plugin-react`. No routing library, state management library, CSS framework, or backend — pure inline styles and `useState`/`useEffect` throughout.
+React 18 + Vite 5 + Socket.IO 4. Express backend with in-memory game state. No routing library, state management library, or CSS framework -- pure inline styles and `useState`/`useEffect` throughout. Development uses `concurrently` + `nodemon` for hot-reload of both frontend and backend.
 
 ## Architecture
-
-The entire app lives in a single file: `src/App.jsx` (~1730 lines). There is no component splitting or module separation.
 
 ### File Structure
 
 ```
-index-html.html     ← HTML entry (needs rename to index.html)
-package-json.json   ← Package manifest (needs rename to package.json)
-vite-config.js      ← Vite config (non-standard name, normally vite.config.js)
+index.html               HTML entry point
+package.json             Root package (frontend deps + dev scripts)
+vite.config.js           Vite config with Socket.IO proxy to :3001
+server/
+  index.js               Express + Socket.IO server
+  GameManager.js          In-memory room/game state management
+  package.json            Server-only dependencies (express, socket.io)
 src/
-  main.jsx          ← React root mount
-  App.jsx           ← Entire application (all components, logic, styles)
+  main.jsx               React root mount
+  App.jsx                 Root component, socket event hub, screen routing
+  socket.js               Socket.IO client wrapper (connect, emit, on/off, reconnect)
+  utils/
+    constants.js          T (apostrophe), NOMINAL_PRESETS, MOCK_TOPICS
+    scoring.js            getTotal, rebuildSnapshots, initScores
+  hooks/
+    useTimer.js           Countdown timer hook (server-authoritative timerEnd)
+    useWindowWidth.js     Responsive breakpoint hook
+  components/
+    LandingScreen.jsx     Host game creation + player join forms
+    HostGameScreen.jsx    Lobby, topic nav, question flow, buzz judging, score editing
+    PlayerGameScreen.jsx  Buzz-in button, timer, personal score view
+    ResultsScreen.jsx     Final rankings, per-topic breakdowns, share link
+    ScoreBoard.jsx        Responsive score table with per-nominal cells
+    SettingsPanel.jsx     Timer, nominal preset, falstart toggle
+    ui/
+      index.js            Barrel export for all UI primitives
+      Btn.jsx, Badge.jsx, Card.jsx, Label.jsx, Input.jsx,
+      Toggle.jsx, SectionToggle.jsx, TimerDisplay.jsx
 ```
 
-### App.jsx Sections (by line regions)
+### Socket.IO Protocol
 
-1. **localStorage adapter** (1-30) — `window.storage` polyfill wrapping `localStorage` with async get/set/delete/list API
-2. **Constants & Utils** (34-134) — `MOCK_PLAYERS`, `NOMINAL_PRESETS` (score value sets), `MOCK_TOPICS`, scoring functions (`getTotal`, `rebuildSnapshots`, `initScores`), custom hooks (`useWindowWidth`, `useTimer`), game code generator
-3. **Reusable UI components** (136-282) — `Btn`, `Badge`, `Card`, `Label`, `SectionToggle`, `Toggle`, `Input`, `TimerDisplay` — all inline-styled
-4. **ScoreBoard** (284-397) — Responsive score table with per-nominal cells, click-to-toggle scoring for host, running totals with snapshot system across topics
-5. **SettingsPanel** (399-460) — Timer duration, nominal preset selection, falstart toggle
-6. **LandingScreen** (462-629) — Host game creation form + player join form (game code entry)
-7. **HostGameScreen** (630-1333) — Core game management: lobby, topic navigation, cell-by-cell question flow (nominals within topics), buzz order display, timer control, falstart blocking, player management (block/remove), inline score editing, game finish with result export
-8. **PlayerGameScreen** (1334-1523) — Buzz-in button (spacebar or tap), timer display, personal score view — currently uses hardcoded mock data
-9. **ResultsScreen** (1524-1649) — Final rankings, per-topic score breakdowns, share link via URL hash, localStorage result loading
-10. **App root** (1650-1727) — Tab-based navigation between all four screens, game state lifting
+**Client -> Server events:**
+- `create-room` -- host creates a new game room with settings
+- `join-room` -- player (or reconnecting host) joins by room code + name
+- `start-timer` -- host starts timer for a specific cell `{ ti, ni }`
+- `buzz` -- player buzzes in
+- `judge` -- host marks answer correct/wrong `{ playerId, result }`
+- `skip-question` -- host skips current question
+- `lock-room` / `block-player` / `remove-player` -- host management actions
+- `finish-game` -- host ends the game
+
+**Server -> Client events:**
+- `room-created` -- confirms room creation with `{ code }`
+- `game-state` -- full authoritative state broadcast to all room members
+- `timer-started` / `timer-expired` -- timer lifecycle
+- `buzz-update` -- updated buzz order
+- `game-finished` -- final results payload
+- `error` -- error message
 
 ### Key Concepts
 
-- **Nominals:** Point values per question (e.g., `[10, 20, 30, 40, 50]`). Six preset tiers available.
-- **Topic scores:** Array of score objects per topic. Each entry maps `playerId → { nominal → "correct"|"wrong"|null }`.
-- **Snapshots (`__snapshot`):** Cumulative grand totals embedded in each topic score entry via `rebuildSnapshots()` for efficient rendering of historical totals.
-- **Cell data:** `cellData` tracks per-cell (topic+nominal) question state including buzz history, used for sequential question flow enforcement.
-- **Falstart mode:** When enabled, players can't buzz until the host explicitly starts the timer.
-- **`MOCK_PLAYERS`:** Hardcoded 4-player list used throughout — no real networking/WebSocket exists yet.
+- **Room codes:** 4-digit numeric codes generated by the server. Players join by entering the code.
+- **Server-authoritative state:** All game logic (timer, buzz ordering, scoring) runs on the server. Clients receive full state via `game-state` broadcasts.
+- **Nominals:** Point values per question (e.g., `[10, 20, 30, 40, 50]`). Six preset tiers available in `NOMINAL_PRESETS`.
+- **Topic scores:** Array of score objects per topic. Each entry maps `playerId -> { nominal -> "correct"|"wrong"|null }`.
+- **Snapshots (`__snapshot`):** Cumulative grand totals embedded in each topic score entry via `rebuildSnapshots()`.
+- **Cell data:** `cellData` tracks per-cell (topic+nominal) question state including buzz history.
+- **Falstart mode:** When enabled, players cannot buzz until the host explicitly starts the timer.
+- **Latency compensation:** Server pings clients to measure latency; buzz timestamps are adjusted by half the round-trip time.
+- **Reconnect:** Session info is stored in `sessionStorage`. On socket reconnect, the client auto-rejoins the room. The server matches by player name for players and by host name for hosts.
 
 ### Persistence
 
-Results are saved to `localStorage` via the `window.storage` adapter. Results can be loaded from URL hash (`#results/{id}`).
+Results are saved to `localStorage` via the `window.storage` adapter. Results can be loaded from URL hash (`#results/{id}`). Active game sessions use `sessionStorage` for reconnection support.
 
 ### Styling
 

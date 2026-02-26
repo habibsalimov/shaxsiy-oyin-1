@@ -59,6 +59,10 @@ io.on("connection", (socket) => {
       return;
     }
     socket.join(result.room.code);
+    // If host reconnected, re-emit room-created so client restores host screen
+    if (result.isHost) {
+      socket.emit("room-created", { code: result.room.code });
+    }
     broadcastState(result.room);
   });
 
