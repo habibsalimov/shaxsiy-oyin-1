@@ -30,6 +30,10 @@ if (!window.storage) {
 }
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { NOMINAL_PRESETS, DEFAULT_NOMINALS, T } from './utils/constants.js';
+import { getTotal, rebuildSnapshots, initScores } from './utils/scoring.js';
+import { useTimer } from './hooks/useTimer.js';
+import { useWindowWidth } from './hooks/useWindowWidth.js';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MOCK_PLAYERS = [
@@ -39,18 +43,6 @@ const MOCK_PLAYERS = [
   { socketId: "p4", name: "Malika",  latency: 55 },
 ];
 const MOCK_TOPICS = ["Tarix", "Geografiya", "Fan va texnologiya", "Musiqa", "Sport"];
-
-const NOMINAL_PRESETS = [
-  [10, 20, 30, 40, 50],
-  [20, 40, 60, 80, 100],
-  [30, 60, 90, 120, 150],
-  [100, 200, 300, 400, 500],
-  [200, 400, 600, 800, 1000],
-  [300, 600, 900, 1200, 1500],
-];
-const DEFAULT_NOMINALS = NOMINAL_PRESETS[0];
-
-const T = '\u2018';
 
 // ─── GAME CODE GENERATOR ─────────────────────────────────────────────────────
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -73,64 +65,6 @@ function generateGameCode(existingCodes = new Set()) {
     if (!existingCodes.has(code)) return code;
   }
   return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
-// ─── UTILS ────────────────────────────────────────────────────────────────────
-function getTotal(scores, id, nominals) {
-  if (!scores[id]) return 0;
-  const noms = nominals || DEFAULT_NOMINALS;
-  return noms.reduce((acc, n) => {
-    const r = scores[id][n];
-    if (r === "correct") return acc + n;
-    if (r === "wrong")   return acc - n;
-    return acc;
-  }, 0);
-}
-
-function rebuildSnapshots(topicScores, nominals) {
-  const result = topicScores.map(ts => ({ ...ts }));
-  const playerIds = Object.keys(result[0] || {}).filter(k => k !== '__snapshot');
-  for (let i = 0; i < result.length; i++) {
-    const snapshot = {};
-    playerIds.forEach(pid => {
-      snapshot[pid] = result
-        .slice(0, i + 1)
-        .reduce((sum, ts) => sum + getTotal(ts, pid, nominals), 0);
-    });
-    result[i] = { ...result[i], __snapshot: snapshot };
-  }
-  return result;
-}
-
-function useWindowWidth() {
-  const [w, setW] = useState(() => typeof window !== "undefined" ? window.innerWidth : 1200);
-  useEffect(() => {
-    const handler = () => setW(window.innerWidth);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-  return w;
-}
-
-function useTimer(timerEnd, timerSec) {
-  const [rem, setRem] = useState(timerSec);
-  useEffect(() => {
-    if (!timerEnd) { setRem(timerSec); return; }
-    const tick = () => setRem(Math.max(0, (timerEnd - Date.now()) / 1000));
-    tick();
-    const iv = setInterval(tick, 80);
-    return () => clearInterval(iv);
-  }, [timerEnd, timerSec]);
-  return rem;
-}
-
-function initScores(players, nominals) {
-  const s = {};
-  players.forEach(p => {
-    s[p.socketId] = {};
-    nominals.forEach(n => { s[p.socketId][n] = null; });
-  });
-  return s;
 }
 
 // ─── SMALL UI COMPONENTS ─────────────────────────────────────────────────────
