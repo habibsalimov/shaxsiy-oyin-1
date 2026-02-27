@@ -30,11 +30,21 @@ if (!window.storage) {
 }
 
 import { useState, useEffect } from "react";
+import { T } from './utils/constants.js';
 import { getSocket, onEvent, emitEvent } from './socket.js';
 import { LandingScreen } from './components/LandingScreen.jsx';
 import { HostGameScreen } from './components/HostGameScreen.jsx';
 import { PlayerGameScreen } from './components/PlayerGameScreen.jsx';
 import { ResultsScreen } from './components/ResultsScreen.jsx';
+
+const IS_DEV = true;
+
+const DEV_SCREENS = [
+  { id: "landing",    label: "Bosh sahifa" },
+  { id: "hostGame",   label: "Boshlovchi panel" },
+  { id: "playerGame", label: `O${T}yinchi ekrani` },
+  { id: "results",    label: "Natijalar" },
+];
 
 function genId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -137,9 +147,9 @@ export default function App() {
       overflow: "hidden",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;500;600;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;500;600;700;900&family=Noto+Color+Emoji&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0a0e1a; }
+        body { background: #0a0e1a; font-family: 'Montserrat', 'Segoe UI', sans-serif, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji'; }
         @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes pulse  { from { opacity:1; } to { opacity:0.55; } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -158,6 +168,20 @@ export default function App() {
           maxWidth: "90vw", textAlign: "center",
         }}>
           {errorMsg}
+        </div>
+      )}
+
+      {IS_DEV && (
+        <div style={{ flexShrink: 0, zIndex: 200, background: "rgba(10,14,26,0.97)", backdropFilter: "blur(8px)", borderBottom: "1px solid #1e2940", display: "flex", gap: 0, overflowX: "auto", padding: "0 8px" }}>
+          {DEV_SCREENS.map(s => (
+            <button key={s.id} onClick={() => setScreen(s.id)} style={{
+              background: "none", border: "none", cursor: "pointer", padding: "12px 14px",
+              fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
+              color: screen === s.id ? "#f5c800" : "#8899aa",
+              borderBottom: screen === s.id ? "2px solid #f5c800" : "2px solid transparent",
+              whiteSpace: "nowrap", fontFamily: "inherit", transition: "color 0.15s",
+            }}>{s.label}</button>
+          ))}
         </div>
       )}
 
