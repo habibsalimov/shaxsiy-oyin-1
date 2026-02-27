@@ -306,6 +306,10 @@ export class GameManager {
       date: new Date().toISOString(),
     };
 
+    // Clean up socketToRoom entries
+    this.socketToRoom.delete(room.hostSocketId);
+    room.players.forEach(p => this.socketToRoom.delete(p.socketId));
+
     // Schedule room cleanup after 5 minutes
     setTimeout(() => {
       this.rooms.delete(room.code);
