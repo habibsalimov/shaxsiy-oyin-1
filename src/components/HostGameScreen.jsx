@@ -8,8 +8,6 @@ import { SettingsPanel } from './SettingsPanel.jsx';
 
 export function HostGameScreen({ gameState, roomCode, onFinish }) {
   // ─── Local UI-only state ───────────────────────────────────────────────────
-  const [editingTopic, setEditingTopic] = useState(null);
-  const [editValue, setEditValue]     = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copied, setCopied]           = useState(false);
   const [collapsedScores, setCollapsedScores] = useState(new Set());
@@ -324,23 +322,9 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                     borderBottom: "1px solid #1e2940", cursor: "pointer", userSelect: "none",
                   }} onClick={() => toggleTopic(ti)}>
                     <span style={{ fontSize: 11, color: "#445566", flexShrink: 0, transition: "transform 0.2s", display: "inline-block", transform: expandedTopics.has(ti) ? "rotate(90deg)" : "rotate(0deg)" }}>\u25B6</span>
-                    {editingTopic === ti ? (
-                      <input autoFocus value={editValue}
-                        onChange={e => setEditValue(e.target.value)}
-                        onClick={e => e.stopPropagation()}
-                        onKeyDown={e => {
-                          if (e.key === "Enter") { setEditingTopic(null); }
-                          if (e.key === "Escape") setEditingTopic(null);
-                        }}
-                        onBlur={() => { setEditingTopic(null); }}
-                        style={{ background: "#1e2940", border: "1px solid #f5c800", color: "#f0f4ff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, borderRadius: 3, padding: "4px 8px", outline: "none", flex: 1 }}
-                      />
-                    ) : (
-                      <span onClick={e => { e.stopPropagation(); setEditingTopic(ti); setEditValue(topicName); }}
-                        style={{ fontFamily: "'Anton', sans-serif", fontSize: 14, letterSpacing: "0.04em", color: isTopicActive ? "#f5c800" : "#f0f4ff", flex: 1 }}>
-                        {ti + 1}. {topicName}
-                      </span>
-                    )}
+                    <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 14, letterSpacing: "0.04em", color: isTopicActive ? "#f5c800" : "#f0f4ff", flex: 1 }}>
+                      {ti + 1}. {topicName}
+                    </span>
                     <span style={{ fontSize: 11, color: "#445566", flexShrink: 0 }}>{activeNominals.length} savol</span>
                   </div>
 
@@ -503,18 +487,6 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
               );
             })}
 
-            <div style={{ padding: "10px 12px 16px" }}>
-              <button onClick={() => {
-                // Adding topics is a local-only action for now; topic names come from server
-              }} style={{
-                width: "100%", background: "transparent", border: "1px dashed #2a3a52", borderRadius: 4,
-                padding: "8px 14px", cursor: "pointer", fontFamily: "inherit", color: "#445566",
-                fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.15s",
-              }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "#f5c800"; e.currentTarget.style.color = "#f5c800"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a3a52"; e.currentTarget.style.color = "#445566"; }}
-              >+ Mavzu qo{T}shish</button>
-            </div>
           </div>
 
           {/* RIGHT: per-topic scoreboards */}
@@ -565,7 +537,7 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
               </div>
             )}
             {topicScores.length > 0 && (
-              <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>{`Katakchani bosib natijani o${T}zgartirish mumkin`}</div>
+              <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>{`Katakchani bosib natijani o${T}zgartirish mumkin (null \u2192 to${T}g${T}ri \u2192 noto${T}g${T}ri \u2192 null)`}</div>
             )}
           </div>
         </div>
