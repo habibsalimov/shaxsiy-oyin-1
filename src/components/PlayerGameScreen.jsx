@@ -10,7 +10,7 @@ export function PlayerGameScreen({ gameState }) {
   const [expandedDetail, setExpandedDetail] = useState(new Set());
 
   // ─── Derive everything from gameState ─────────────────────────────────────
-  const myId = getSocketId();
+  const myId = getSocketId() || "";
   const players = gameState?.players || [];
   const myPlayer = players.find(p => p.socketId === myId);
   const nominals = gameState?.settings?.nominals || [10,20,30,40,50];
@@ -29,7 +29,7 @@ export function PlayerGameScreen({ gameState }) {
 
   // ─── Derive phase ─────────────────────────────────────────────────────────
   const myBuzzed = buzzOrder.some(b => b.socketId === myId);
-  const phase = !activeCell ? "waiting" : timerEnd ? "active" : myBuzzed ? "buzzed" : buzzOrder.length > 0 ? "buzzed" : "waiting";
+  const phase = !activeCell ? "waiting" : timerEnd ? "active" : myBuzzed ? "buzzed" : buzzOrder.length > 0 ? "answering" : "waiting";
 
   // ─── Compute totals ───────────────────────────────────────────────────────
   const grandTotals = players.map(p => ({
@@ -83,7 +83,7 @@ export function PlayerGameScreen({ gameState }) {
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: "1px solid #1e2940", background: "rgba(17,24,39,0.97)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, letterSpacing: "0.1em", color: "#f5c800" }}>{`SHAXSIY O'YIN`}</span>
+          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, letterSpacing: "0.1em", color: "#f5c800" }}>{`SHAXSIY O${T}YIN`}</span>
           <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 12, color: "#8899aa" }}>{roomCode}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -121,7 +121,11 @@ export function PlayerGameScreen({ gameState }) {
             <span style={{ fontSize: 13, color: "#f5c800" }}>Siz {myPosition + 1}-o'rindasiz {"\xb7"} +{Math.abs(buzzOrder[myPosition].effectiveTime - buzzOrder[0].effectiveTime)}ms</span>
           </div>
         )}
-        {phase === "waiting" && <div style={{ textAlign: "center", color: "#8899aa", fontSize: 13, marginBottom: 12 }}>{"\u23F3"} Boshlovchi savolni tayyorlamoqda...</div>}
+        {phase === "waiting" && (
+          <div style={{ textAlign: "center", color: "#8899aa", fontSize: 13, marginBottom: 12 }}>
+            {!activeCell ? "\u23F3 Boshlovchi savolni tayyorlamoqda..." : "\u23F3 Javob kutilmoqda..."}
+          </div>
+        )}
 
         <div style={{ display: "flex", justifyContent: "center", padding: "4px 0", marginBottom: 14 }}>
           <div style={{ textAlign: "center" }}>
@@ -130,7 +134,7 @@ export function PlayerGameScreen({ gameState }) {
               onMouseUp={() => { setPressing(false); handleBuzz(); }}
               onTouchStart={(e) => { e.preventDefault(); setPressing(true); }}
               onTouchEnd={(e) => { e.preventDefault(); setPressing(false); handleBuzz(); }}
-              disabled={phase !== "active" || myBuzzed}
+              disabled={phase !== "active"}
               style={{
                 width: 170, height: 170, borderRadius: "50%",
                 border: `5px solid ${phase === "buzzed" && iAmFirst ? "#2ecc71" : myBuzzed ? "#445566" : "#f5c800"}`,
@@ -145,7 +149,7 @@ export function PlayerGameScreen({ gameState }) {
               {phase === "buzzed" && iAmFirst ? "\uD83C\uDFA4" : myBuzzed ? "\u2713" : "JAVOB"}
             </button>
             <div style={{ marginTop: 10, fontSize: 11, color: "#8899aa" }}>
-              {phase === "active" && !myBuzzed ? "Bosing yoki SPACE" : myBuzzed ? "Siz bosdingiz!" : "Kutilmoqda..."}
+              {phase === "active" ? "Bosing yoki SPACE" : myBuzzed ? "Siz bosdingiz!" : phase === "answering" ? "Javob kutilmoqda..." : "Kutilmoqda..."}
             </div>
           </div>
         </div>
