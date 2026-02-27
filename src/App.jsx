@@ -37,7 +37,7 @@ import { HostGameScreen } from './components/HostGameScreen.jsx';
 import { PlayerGameScreen } from './components/PlayerGameScreen.jsx';
 import { ResultsScreen } from './components/ResultsScreen.jsx';
 
-const IS_DEV = true;
+const IS_DEV = false;
 
 const DEV_SCREENS = [
   { id: "landing",    label: "Bosh sahifa" },
