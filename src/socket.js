@@ -16,8 +16,13 @@ export function getSocket() {
       socket.emit("pong-latency", ts);
     });
 
-    // Auto-rejoin room on reconnect using saved session
+    // Auto-rejoin room on reconnect (not initial connect)
+    let hasConnectedBefore = false;
     socket.on("connect", () => {
+      if (!hasConnectedBefore) {
+        hasConnectedBefore = true;
+        return;
+      }
       const raw = sessionStorage.getItem("game-session");
       if (!raw) return;
       try {
