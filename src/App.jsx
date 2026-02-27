@@ -30,20 +30,11 @@ if (!window.storage) {
 }
 
 import { useState, useEffect } from "react";
-import { T } from './utils/constants.js';
 import { getSocket, onEvent, emitEvent } from './socket.js';
 import { LandingScreen } from './components/LandingScreen.jsx';
 import { HostGameScreen } from './components/HostGameScreen.jsx';
 import { PlayerGameScreen } from './components/PlayerGameScreen.jsx';
 import { ResultsScreen } from './components/ResultsScreen.jsx';
-
-// ─── NAV TABS & APP ───────────────────────────────────────────────────────────
-const SCREENS = [
-  { id: "landing",    label: "Bosh sahifa" },
-  { id: "hostGame",   label: "Boshlovchi panel" },
-  { id: "playerGame", label: `O${T}yinchi ekrani` },
-  { id: "results",    label: "Natijalar" },
-];
 
 function genId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -142,18 +133,6 @@ export default function App() {
       `}</style>
 
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(245,200,0,0.025) 1px, transparent 1px),linear-gradient(90deg, rgba(245,200,0,0.025) 1px, transparent 1px)", backgroundSize: "56px 56px" }} />
-
-      <div style={{ flexShrink: 0, zIndex: 200, background: "rgba(10,14,26,0.97)", backdropFilter: "blur(8px)", borderBottom: "1px solid #1e2940", display: "flex", gap: 0, overflowX: "auto", padding: "0 8px" }}>
-        {SCREENS.map(s => (
-          <button key={s.id} onClick={() => setScreen(s.id)} style={{
-            background: "none", border: "none", cursor: "pointer", padding: "12px 14px",
-            fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
-            color: screen === s.id ? "#f5c800" : "#8899aa",
-            borderBottom: screen === s.id ? "2px solid #f5c800" : "2px solid transparent",
-            whiteSpace: "nowrap", fontFamily: "inherit", transition: "color 0.15s",
-          }}>{s.label}</button>
-        ))}
-      </div>
 
       <div style={{ position: "relative", zIndex: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflowY: "auto" }}>
         {screen === "landing" && (
