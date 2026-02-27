@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NOMINAL_PRESETS, T } from '../utils/constants.js';
 import { emitEvent, onEvent } from '../socket.js';
 import { Btn, Badge, Label, Input, SectionToggle } from './ui/index.js';
@@ -33,19 +33,26 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
     });
   };
 
+  const [joinPending, setJoinPending] = useState(false);
+
   const handlePlayer = () => {
     if (!playerName.trim()) { setPlayerError("Ismingizni kiriting"); return; }
     if (gameCode.length < 4) { setPlayerError(`O${T}yin kodini kiriting`); return; }
     setPlayerError("");
+    setJoinPending(true);
     emitEvent("join-room", { code: gameCode, playerName: playerName.trim() });
-    // Listen for first game-state to confirm join success
+  };
+
+  useEffect(() => {
+    if (!joinPending) return;
     const unsub = onEvent("game-state", () => {
       unsub();
-      // Store player session for reconnect
+      setJoinPending(false);
       sessionStorage.setItem("game-session", JSON.stringify({ roomCode: gameCode, isHost: false, playerName: playerName.trim() }));
       onPlayerJoined();
     });
-  };
+    return () => { unsub(); setJoinPending(false); };
+  }, [joinPending, gameCode, playerName, onPlayerJoined]);
 
   const card = {
     background: "#111827", border: "1px solid #1e2940", borderRadius: 8,
