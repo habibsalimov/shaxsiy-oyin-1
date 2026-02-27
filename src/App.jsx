@@ -48,6 +48,7 @@ export default function App() {
   const [connected, setConnected]   = useState(false);
   const [gameResult, setGameResult] = useState(null);
   const [archiveId, setArchiveId]   = useState(null);
+  const [errorMsg, setErrorMsg]     = useState(null);
 
   useEffect(() => {
     const socket = getSocket();
@@ -105,6 +106,8 @@ export default function App() {
 
     const unsub4 = onEvent("error", ({ message }) => {
       console.error("Server error:", message);
+      setErrorMsg(message);
+      setTimeout(() => setErrorMsg(null), 4000);
     });
 
     return () => {
@@ -134,12 +137,25 @@ export default function App() {
 
       <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(245,200,0,0.025) 1px, transparent 1px),linear-gradient(90deg, rgba(245,200,0,0.025) 1px, transparent 1px)", backgroundSize: "56px 56px" }} />
 
+      {errorMsg && (
+        <div style={{
+          position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
+          zIndex: 9999, background: "#e63946", color: "#fff", padding: "10px 20px",
+          borderRadius: 6, fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+          boxShadow: "0 4px 20px rgba(230,57,70,0.4)", animation: "fadeIn 0.2s ease both",
+          maxWidth: "90vw", textAlign: "center",
+        }}>
+          {errorMsg}
+        </div>
+      )}
+
       <div style={{ position: "relative", zIndex: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflowY: "auto" }}>
         {screen === "landing" && (
           <LandingScreen
             connected={connected}
             onHostCreated={() => {}}
             onPlayerJoined={() => setScreen("playerGame")}
+            errorMsg={errorMsg}
           />
         )}
         {screen === "hostGame" && (

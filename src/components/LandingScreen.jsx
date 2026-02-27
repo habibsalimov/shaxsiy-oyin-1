@@ -4,7 +4,7 @@ import { emitEvent, onEvent } from '../socket.js';
 import { Btn, Badge, Label, Input, SectionToggle } from './ui/index.js';
 import { SettingsPanel } from './SettingsPanel.jsx';
 
-export function LandingScreen({ connected, onHostCreated, onPlayerJoined }) {
+export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorMsg }) {
   const [hostName, setHostName] = useState("");
   const [rounds, setRounds] = useState("5");
   const [topics, setTopics] = useState("");
@@ -170,6 +170,7 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined }) {
           </div>
 
           {playerError && <div style={{ fontSize: 11, color: "#e63946", marginBottom: 8 }}>⚠ {playerError}</div>}
+          {errorMsg && <div style={{ fontSize: 11, color: "#e63946", marginBottom: 8, padding: "6px 10px", background: "rgba(230,57,70,0.1)", borderRadius: 4, border: "1px solid rgba(230,57,70,0.3)" }}>⚠ {errorMsg}</div>}
           <div style={{ flex: 1 }} />
           <Btn variant="green" style={{ width: "100%" }} onClick={handlePlayer}>{`QO${T}SHILISH`}</Btn>
         </div>
