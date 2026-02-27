@@ -75,16 +75,19 @@ src/
 - `buzz` -- player buzzes in
 - `judge` -- host marks answer correct/wrong `{ playerId, result }`
 - `skip-question` -- host skips current question
+- `correct-score` -- host manually cycles a score cell `{ playerId, ti, ni }` (null → correct → wrong → null)
 - `lock-room` / `block-player` / `remove-player` -- host management actions
 - `finish-game` -- host ends the game
 
 **Server -> Client events:**
 - `room-created` -- confirms room creation with `{ code }`
-- `game-state` -- full authoritative state broadcast to all room members
+- `game-state` -- full authoritative state broadcast to all room members (includes `hostConnected` field)
 - `timer-started` / `timer-expired` -- timer lifecycle
 - `buzz-update` -- updated buzz order
+- `falstart-caught` -- player caught buzzing before timer `{ playerId }`
+- `player-removed` -- player was removed from the game `{ playerId }`
 - `game-finished` -- final results payload
-- `error` -- error message
+- `error` -- error message (displayed as toast in UI)
 
 ### Key Concepts
 
