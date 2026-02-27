@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import path from "path";
 import { GameManager } from "./GameManager.js";
+import { saveResult, getResult, listResults } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -19,6 +20,20 @@ const gm = new GameManager();
 // Serve static files in production
 const distPath = path.join(__dirname, "..", "dist");
 app.use(express.static(distPath));
+
+// REST API for game results
+app.get("/api/results", (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json(listResults(limit));
+});
+
+app.get("/api/results/:id", (req, res) => {
+  const result = getResult(req.params.id);
+  if (!result) return res.status(404).json({ error: "Natija topilmadi" });
+  res.json(result);
+});
+
+// SPA catch-all (must be after API routes)
 app.get("/{*splat}", (req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
@@ -137,7 +152,9 @@ io.on("connection", (socket) => {
   socket.on("finish-game", () => {
     const result = gm.finishGame(socket.id);
     if (!result) return;
-    io.to(result.room.code).emit("game-finished", { finalResult: result.result });
+    const id = Math.random().toString(36).slice(2, 8).toUpperCase();
+    try { saveResult(id, result.room.hostName, result.result); } catch (e) { console.error("DB save error:", e); }
+    io.to(result.room.code).emit("game-finished", { finalResult: { id, ...result.result } });
   });
 
   socket.on("disconnect", () => {
