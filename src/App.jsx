@@ -51,7 +51,10 @@ function genId() {
 }
 
 export default function App() {
-  const [screen, setScreen]         = useState("landing");
+  const [screen, setScreen]         = useState(() => {
+    const hash = window.location.hash;
+    return hash.startsWith("#results/") ? "results" : "landing";
+  });
   const [gameState, setGameState]   = useState(null);
   const [roomCode, setRoomCode]     = useState(null);
   const [isHost, setIsHost]         = useState(false);
@@ -110,6 +113,7 @@ export default function App() {
       setArchiveId(id);
       setGameResult(finalResult);
       setScreen("results");
+      window.location.hash = `results/${id}`;
       sessionStorage.removeItem("game-session");
     });
 
@@ -212,6 +216,7 @@ export default function App() {
               setGameState(null);
               setRoomCode(null);
               setIsHost(false);
+              window.location.hash = "";
               sessionStorage.removeItem("game-session");
             }}
           />
