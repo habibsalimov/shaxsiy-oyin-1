@@ -129,7 +129,6 @@ export class GameManager {
 
     room.activeCell = { ti, ni };
     room.buzzOrder = [];
-    room.falstartBlocked = new Set();
     if (room.phase === "lobby") room.phase = "playing";
     this._ensureTopicScores(room, ti);
     room.currentTopicIdx = ti;
@@ -155,13 +154,24 @@ export class GameManager {
 
   buzz(socketId) {
     const room = this.getRoomForSocket(socketId);
-    if (!room || !room.timerEnd) return null;
+    if (!room) return null;
     if (room.blockedPlayers.has(socketId)) return null;
     if (room.falstartBlocked.has(socketId)) return null;
     if (room.buzzOrder.some(b => b.socketId === socketId)) return null;
 
     const player = room.players.find(p => p.socketId === socketId);
     if (!player || !player.connected) return null;
+
+    // Timer not running yet
+    if (!room.timerEnd) {
+      // Falstart enabled: penalize this player for the current cell
+      if (room.settings.falstart && room.activeCell) {
+        room.falstartBlocked.add(socketId);
+        return { room, falstart: true };
+      }
+      // Falstart disabled: silently reject
+      return null;
+    }
 
     const effectiveTime = Date.now() - Math.floor(player.latency / 2);
     room.buzzOrder.push({ socketId, name: player.name, effectiveTime });
@@ -202,6 +212,7 @@ export class GameManager {
 
     if (result === "correct") {
       room.buzzOrder = [];
+      room.falstartBlocked = new Set();
       clearTimeout(room.timerTimeout);
       room.timerEnd = null;
       // Auto-advance
@@ -233,6 +244,7 @@ export class GameManager {
     clearTimeout(room.timerTimeout);
     room.timerEnd = null;
     room.buzzOrder = [];
+    room.falstartBlocked = new Set();
 
     const nextNi = ni + 1;
     if (nextNi < room.settings.nominals.length) {

@@ -88,7 +88,12 @@ io.on("connection", (socket) => {
   socket.on("buzz", () => {
     const result = gm.buzz(socket.id);
     if (!result) return;
-    io.to(result.room.code).emit("buzz-update", { buzzOrder: result.room.buzzOrder });
+    if (result.falstart) {
+      io.to(result.room.code).emit("falstart-caught", { playerId: socket.id });
+    }
+    if (result.room.buzzOrder.length > 0) {
+      io.to(result.room.code).emit("buzz-update", { buzzOrder: result.room.buzzOrder });
+    }
     broadcastState(result.room);
   });
 
