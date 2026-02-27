@@ -13,13 +13,16 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
   useEffect(() => {
     if (gameResult) { setData(gameResult); return; }
     const hash = window.location.hash.replace("#results/", "").trim();
-    if (hash) {
-      window.storage.get(`results:${hash}`)
-        .then(r => r ? setData(JSON.parse(r.value)) : setLoadError(true))
-        .catch(() => setLoadError(true));
-    } else {
-      setLoadError(true);
-    }
+    if (!hash) { setLoadError(true); return; }
+    // Try API first, fall back to localStorage for old saved results
+    fetch(`/api/results/${hash}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => setData(d))
+      .catch(() => {
+        window.storage.get(`results:${hash}`)
+          .then(r => r ? setData(JSON.parse(r.value)) : setLoadError(true))
+          .catch(() => setLoadError(true));
+      });
   }, [gameResult]);
 
   if (loadError) return (
