@@ -14,7 +14,7 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
     if (gameResult) { setData(gameResult); return; }
     const hash = window.location.hash.replace("#results/", "").trim();
     if (hash) {
-      window.storage.get(`results:${hash}`, true)
+      window.storage.get(`results:${hash}`)
         .then(r => r ? setData(JSON.parse(r.value)) : setLoadError(true))
         .catch(() => setLoadError(true));
     } else {
@@ -62,8 +62,9 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
     const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "natijalar.csv"; a.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement("a"); a.href = url; a.download = "natijalar.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   return (
