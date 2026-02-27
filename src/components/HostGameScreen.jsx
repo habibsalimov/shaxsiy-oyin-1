@@ -550,8 +550,9 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                       currentNominal={activeNomForPanel} isHost={true} allTopicScores={topicScores}
                       blockedPlayers={blockedPlayers}
                       onCellClick={(sid, n) => {
-                        // Manual score editing via socket is not yet implemented;
-                        // for now this is a visual-only feature
+                        const ni = activeNominals.indexOf(n);
+                        if (ni === -1) return;
+                        emitEvent("correct-score", { playerId: sid, ti: scorePanelTi, ni });
                       }}
                     />
                   )}
