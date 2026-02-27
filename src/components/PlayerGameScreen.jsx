@@ -21,6 +21,7 @@ export function PlayerGameScreen({ gameState }) {
   const timerEnd = gameState?.timerEnd;
   const buzzOrder = gameState?.buzzOrder || [];
   const roomCode = gameState?.code || "";
+  const hostConnected = gameState?.hostConnected !== false;
 
   const currentTopicName = topicNames[currentTopicIdx] || `${currentTopicIdx + 1}-mavzu`;
   const currentNominal = activeCell ? nominals[activeCell.ni] : null;
@@ -91,6 +92,12 @@ export function PlayerGameScreen({ gameState }) {
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1e2940", borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 600 }}>{myPlayer?.name || "..."}</span>
         </div>
       </div>
+
+      {!hostConnected && (
+        <div style={{ background: "rgba(243,156,18,0.12)", borderBottom: "1px solid rgba(243,156,18,0.3)", padding: "8px 16px", textAlign: "center", fontSize: 12, color: "#f39c12", fontWeight: 600 }}>
+          ⚠ Boshlovchi bilan aloqa uzildi. Qayta ulanishini kuting...
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
         <div style={{ textAlign: "center", marginBottom: 12 }}>

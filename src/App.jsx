@@ -110,10 +110,22 @@ export default function App() {
       setTimeout(() => setErrorMsg(null), 4000);
     });
 
+    const unsub5 = onEvent("player-removed", ({ playerId }) => {
+      if (playerId === getSocket().id) {
+        setScreen("landing");
+        setGameState(null);
+        setRoomCode(null);
+        setIsHost(false);
+        sessionStorage.removeItem("game-session");
+        setErrorMsg("Siz o'yindan chiqarildingiz");
+        setTimeout(() => setErrorMsg(null), 4000);
+      }
+    });
+
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
-      unsub1(); unsub2(); unsub3(); unsub4();
+      unsub1(); unsub2(); unsub3(); unsub4(); unsub5();
     };
   }, []);
 

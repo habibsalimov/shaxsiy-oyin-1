@@ -30,6 +30,7 @@ export class GameManager {
       code,
       hostSocketId: socketId,
       hostName,
+      hostConnected: true,
       settings: { timer: parseInt(timer) || 7, nominals: nominals || [10,20,30,40,50], falstart: !!falstart },
       topicNames,
       players: [],
@@ -59,6 +60,7 @@ export class GameManager {
       const oldHostId = room.hostSocketId;
       this.socketToRoom.delete(oldHostId);
       room.hostSocketId = socketId;
+      room.hostConnected = true;
       this.socketToRoom.set(socketId, code);
       return { room, reconnected: true, isHost: true };
     }
@@ -317,6 +319,8 @@ export class GameManager {
     if (!room) return null;
 
     if (room.hostSocketId === socketId) {
+      this.socketToRoom.delete(socketId);
+      room.hostConnected = false;
       return { room, hostDisconnected: true };
     }
 
@@ -333,6 +337,7 @@ export class GameManager {
       code: room.code,
       hostName: room.hostName,
       hostSocketId: room.hostSocketId,
+      hostConnected: room.hostConnected !== false,
       settings: { ...room.settings },
       topicNames: [...room.topicNames],
       players: room.players.map(p => ({
