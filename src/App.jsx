@@ -105,11 +105,10 @@ export default function App() {
     });
 
     const unsub3 = onEvent("game-finished", ({ finalResult }) => {
-      const id = genId();
-      const record = { id, ...finalResult };
-      try { window.storage.set(`results:${id}`, JSON.stringify(record), true); } catch(e) {}
+      const id = finalResult.id || genId();
+      try { window.storage.set(`results:${id}`, JSON.stringify(finalResult), true); } catch(e) {}
       setArchiveId(id);
-      setGameResult(record);
+      setGameResult(finalResult);
       setScreen("results");
       sessionStorage.removeItem("game-session");
     });
