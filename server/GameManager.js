@@ -104,6 +104,25 @@ export class GameManager {
     }
   }
 
+  correctScore(socketId, { playerId, ti, ni }) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+    if (room.phase !== "playing") return null;
+
+    this._ensureTopicScores(room, ti);
+    const nom = room.settings.nominals[ni];
+    if (!room.topicScores[ti][playerId]) {
+      room.topicScores[ti][playerId] = {};
+      room.settings.nominals.forEach(n => { room.topicScores[ti][playerId][n] = null; });
+    }
+
+    const current = room.topicScores[ti][playerId][nom];
+    const next = current === null ? "correct" : current === "correct" ? "wrong" : null;
+    room.topicScores[ti][playerId][nom] = next;
+
+    return { room };
+  }
+
   startTimer(socketId, { ti, ni }) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;

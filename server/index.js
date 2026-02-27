@@ -98,6 +98,12 @@ io.on("connection", (socket) => {
     broadcastState(result.room);
   });
 
+  socket.on("correct-score", (data) => {
+    const result = gm.correctScore(socket.id, data);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
   socket.on("skip-question", (data) => {
     const result = gm.skipQuestion(socket.id, data);
     if (!result) return;
