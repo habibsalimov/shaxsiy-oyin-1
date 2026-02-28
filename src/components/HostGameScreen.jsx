@@ -521,13 +521,13 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                         background: i === 0 ? "rgba(46,204,113,0.12)" : "rgba(255,255,255,0.03)",
                                         border: i === 0 ? "1px solid #2ecc71" : "1px solid transparent",
                                       }}>
-                                        <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: i === 0 ? "#2ecc71" : "#8899aa", minWidth: 18 }}>{i + 1}</span>
-                                        <span style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{b.name}</span>
-                                        {i > 0 && <span style={{ fontSize: 10, color: "#8899aa" }}>+{b.effectiveTime - buzzOrder[0].effectiveTime}ms</span>}
+                                        <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: i === 0 ? "#2ecc71" : "#8899aa", minWidth: 18, flexShrink: 0 }}>{i + 1}</span>
+                                        <span style={{ flex: 1, fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{b.name}</span>
+                                        {i > 0 && <span style={{ fontSize: 10, color: "#8899aa", flexShrink: 0 }}>+{b.effectiveTime - buzzOrder[0].effectiveTime}ms</span>}
                                         {i === 0 && (
-                                          <div style={{ display: "flex", gap: 4 }}>
-                                            <button onClick={() => judge("correct")} style={{ background: "#2ecc71", border: "none", borderRadius: 3, padding: "4px 10px", cursor: "pointer", fontWeight: 700, color: "#0a0e1a", fontSize: 11, fontFamily: "inherit" }}>{"\u2713"} {`TO${T}G${T}RI`}</button>
-                                            <button onClick={() => judge("wrong")} style={{ background: "#e63946", border: "none", borderRadius: 3, padding: "4px 10px", cursor: "pointer", fontWeight: 700, color: "#fff", fontSize: 11, fontFamily: "inherit" }}>{"\u2717"} {`NOTO${T}G${T}RI`}</button>
+                                          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                                            <button onClick={() => judge("correct")} style={{ background: "#2ecc71", border: "none", borderRadius: 3, padding: "4px 10px", cursor: "pointer", fontWeight: 700, color: "#0a0e1a", fontSize: 11, fontFamily: "inherit", whiteSpace: "nowrap" }}>{"\u2713"} {`TO${T}G${T}RI`}</button>
+                                            <button onClick={() => judge("wrong")} style={{ background: "#e63946", border: "none", borderRadius: 3, padding: "4px 10px", cursor: "pointer", fontWeight: 700, color: "#fff", fontSize: 11, fontFamily: "inherit", whiteSpace: "nowrap" }}>{"\u2717"} {`NOTO${T}G${T}RI`}</button>
                                           </div>
                                         )}
                                       </div>
