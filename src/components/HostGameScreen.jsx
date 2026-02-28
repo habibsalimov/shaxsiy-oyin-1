@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { T } from '../utils/constants.js';
 import { useWindowWidth } from '../hooks/useWindowWidth.js';
 import { emitEvent } from '../socket.js';
@@ -18,10 +18,11 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
   const [attachText, setAttachText]   = useState("");
   const [confirmReset, setConfirmReset] = useState(null);
   const [playersOpen, setPlayersOpen]   = useState(false);
-  // Local attachment storage (host-only, not synced to server)
-  const [localAttachments, setLocalAttachments] = useState({});
+  // Attachments now synced via server (gameState.attachments)
   // Local cell lock state (host-only, not synced to server)
   const [localLocks, setLocalLocks] = useState({});
+  // Expanded history panel for old (done) cells
+  const [expandedCell, setExpandedCell] = useState(null);
 
   // ─── Derive all game data from gameState ──────────────────────────────────
   const players = gameState?.players || [];
@@ -73,6 +74,42 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
     return next;
   });
 
+  // ─── Max 3 open score panels ──────────────────────────────────────────────
+  const MAX_OPEN_PANELS = 3;
+
+  // Auto-collapse when topic changes: keep only latest 3 open
+  useEffect(() => {
+    setCollapsedScores(() => {
+      const collapsed = new Set();
+      for (let i = 0; i < topicScores.length; i++) {
+        if (i < currentTopicIdx - (MAX_OPEN_PANELS - 1)) {
+          collapsed.add(i);
+        }
+      }
+      return collapsed;
+    });
+  }, [currentTopicIdx, topicScores.length]);
+
+  const toggleScorePanel = (ti) => {
+    setCollapsedScores(prev => {
+      const next = new Set(prev);
+      if (next.has(ti)) {
+        // Opening — enforce max 3 open
+        next.delete(ti);
+        const openPanels = [];
+        for (let i = 0; i < topicScores.length; i++) {
+          if (!next.has(i)) openPanels.push(i);
+        }
+        if (openPanels.length > MAX_OPEN_PANELS) {
+          next.add(Math.min(...openPanels));
+        }
+      } else {
+        next.add(ti);
+      }
+      return next;
+    });
+  };
+
   // ─── Socket-emitting actions ─────────────────────────────────────────────
   const startTimer = () => {
     if (!activeCell) return;
@@ -116,13 +153,14 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ─── Local attachment handling (host-only) ────────────────────────────────
-  const getLocalAttachment = (ti, ni) => localAttachments[cellKey(ti, ni)] || null;
+  // ─── Attachment handling (synced via server) ─────────────────────────────
+  const serverAttachments = gameState?.attachments || {};
+  const getAttachment = (ti, ni) => serverAttachments[cellKey(ti, ni)] || null;
   const getLocalLock = (ti, ni) => localLocks[cellKey(ti, ni)] || false;
 
   const handleAttachText = (ti, ni) => {
     if (!attachText.trim()) return;
-    setLocalAttachments(prev => ({ ...prev, [cellKey(ti, ni)]: { type: "text", content: attachText.trim() } }));
+    emitEvent("set-attachment", { ti, ni, type: "text", content: attachText.trim() });
     setAttachMode(null);
     setAttachText("");
   };
@@ -130,13 +168,16 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
   const handleAttachImage = (ti, ni, e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setLocalAttachments(prev => ({ ...prev, [cellKey(ti, ni)]: { type: "image", url } }));
-    setAttachMode(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      emitEvent("set-attachment", { ti, ni, type: "image", content: reader.result });
+      setAttachMode(null);
+    };
+    reader.readAsDataURL(file);
   };
 
   const removeAttachment = (ti, ni) => {
-    setLocalAttachments(prev => { const next = { ...prev }; delete next[cellKey(ti, ni)]; return next; });
+    emitEvent("remove-attachment", { ti, ni });
   };
 
   const toggleLocalLock = (ti, ni) => {
@@ -290,13 +331,12 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <Btn style={{ width: "100%" }} onClick={() => {
-                // Start game by activating the first cell/timer
-                if (topicNames.length > 0 && activeNominals.length > 0) {
-                  emitEvent("start-timer", { ti: 0, ni: 0 });
+              <Btn style={{ width: "100%" }} disabled={players.length < 1} onClick={() => {
+                if (players.length >= 1) {
+                  emitEvent("start-game");
                 }
               }}>
-                {`O${T}YINNI BOSHLASH`}
+                {players.length < 1 ? `Kamida 1 ta o${T}yinchi kerak` : `O${T}YINNI BOSHLASH`}
               </Btn>
               <Btn variant={roomLocked ? "danger" : "ghost"} size="sm" style={{ width: "100%" }} onClick={toggleLockRoom}>
                 {roomLocked ? "\uD83D\uDD12 Xona qulflangan \u2014 ochish" : "\uD83D\uDD13 Xonani qulflash"}
@@ -323,7 +363,7 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                     background: isTopicActive ? "rgba(245,200,0,0.12)" : expandedTopics.has(ti) ? "#161f30" : "#0f1726",
                     borderBottom: "1px solid #1e2940", cursor: "pointer", userSelect: "none",
                   }} onClick={() => toggleTopic(ti)}>
-                    <span style={{ fontSize: 11, color: "#445566", flexShrink: 0, transition: "transform 0.2s", display: "inline-block", transform: expandedTopics.has(ti) ? "rotate(90deg)" : "rotate(0deg)" }}>\u25B6</span>
+                    <span style={{ fontSize: 11, color: "#445566", flexShrink: 0, transition: "transform 0.2s", display: "inline-block", transform: expandedTopics.has(ti) ? "rotate(90deg)" : "rotate(0deg)" }}>{"\u25B6"}</span>
                     {editingTopic === ti ? (
                       <input autoFocus value={editValue}
                         onChange={e => setEditValue(e.target.value)}
@@ -351,7 +391,7 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                     const hasNoAnswer = cd.history.some(h => h.result === "no_answer" || h.result === "skipped");
                     const isDone = hasCorrect || hasNoAnswer;
                     const lastResult = cd.history[cd.history.length - 1];
-                    const attachment = getLocalAttachment(ti, ni);
+                    const attachment = getAttachment(ti, ni);
                     const isLocked = getLocalLock(ti, ni);
 
                     return (
@@ -377,14 +417,16 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                           {attachment && <span style={{ fontSize: 12 }}>{attachment.type === "image" ? "\uD83D\uDDBC\uFE0F" : "\uD83D\uDCDD"}</span>}
                           {isLocked && <span style={{ fontSize: 12 }}>{"\uD83D\uDD12"}</span>}
                           {isDone && (
-                            <button onClick={e => { e.stopPropagation(); }} style={{
-                              background: "#1e2940", border: "none", borderRadius: 3, padding: "3px 8px",
-                              fontSize: 10, color: "#8899aa", cursor: "pointer", fontFamily: "inherit",
+                            <button onClick={e => { e.stopPropagation(); setExpandedCell(expandedCell === cellKey(ti, ni) ? null : cellKey(ti, ni)); }} style={{
+                              background: expandedCell === cellKey(ti, ni) ? "rgba(245,200,0,0.15)" : "#1e2940",
+                              border: expandedCell === cellKey(ti, ni) ? "1px solid #f5c800" : "none",
+                              borderRadius: 3, padding: "3px 8px",
+                              fontSize: 10, color: expandedCell === cellKey(ti, ni) ? "#f5c800" : "#8899aa", cursor: "pointer", fontFamily: "inherit",
                             }}>TARIX</button>
                           )}
                         </div>
 
-                        {isActive && (
+                        {(isActive || expandedCell === cellKey(ti, ni)) && (
                           <div style={{ margin: "0 8px 8px", borderRadius: 6, background: "#111827", border: "1px solid #2a3a52", padding: "12px 14px", animation: "fadeIn 0.15s ease both" }}>
                             {isDone ? (
                               <>
@@ -403,11 +445,25 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                                           <span style={{ color: h.result === "correct" ? "#2ecc71" : "#e63946", fontFamily: "'Anton', sans-serif", fontSize: 15 }}>
                                             {h.result === "correct" ? "+" : "\u2212"}{h.nominal}
                                           </span>
+                                          <button onClick={() => emitEvent("correct-score", { playerId: h.playerId, ti, ni: activeNominals.indexOf(h.nominal) !== -1 ? activeNominals.indexOf(h.nominal) : ni })} style={{
+                                            background: "transparent", border: "1px solid rgba(230,57,70,0.3)", borderRadius: 3, padding: "2px 6px",
+                                            fontSize: 9, color: "#e63946", cursor: "pointer", fontFamily: "inherit", fontWeight: 700,
+                                          }}>BEKOR</button>
                                         </>
                                       )}
                                     </div>
                                   ))}
                                 </div>
+                                {!hasCorrect && (
+                                  <div style={{ display: "flex", gap: 6 }}>
+                                    <Btn size="sm" variant="ghost" style={{ flex: 1 }} onClick={() => emitEvent("start-timer", { ti, ni })}>
+                                      {"\u21BB"} Qayta boshlash
+                                    </Btn>
+                                    <Btn size="sm" variant="success" style={{ flex: 1 }} onClick={skipQuestion}>
+                                      Keyingi savol {"\u2192"}
+                                    </Btn>
+                                  </div>
+                                )}
                               </>
                             ) : (
                               <>
@@ -415,7 +471,7 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                                   <div style={{ marginBottom: 10, position: "relative" }}>
                                     {attachment.type === "text"
                                       ? <div style={{ background: "#1e2940", borderRadius: 4, padding: "10px 12px", fontSize: 13, color: "#f0f4ff", lineHeight: 1.5 }}>{attachment.content}</div>
-                                      : <img src={attachment.url} alt="" style={{ maxWidth: "100%", borderRadius: 4, maxHeight: 120, objectFit: "cover" }} />
+                                      : <img src={attachment.content} alt="" style={{ maxWidth: "100%", borderRadius: 4, maxHeight: 120, objectFit: "cover" }} />
                                     }
                                     <button onClick={() => removeAttachment(ti, ni)} style={{ position: "absolute", top: 4, right: 4, background: "#e63946", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
                                   </div>
@@ -504,7 +560,7 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
             })}
 
             <div style={{ padding: "10px 12px 16px" }}>
-              <button onClick={() => {}} style={{
+              <button onClick={() => emitEvent("add-topic", {})} style={{
                 width: "100%", background: "transparent", border: "1px dashed #2a3a52", borderRadius: 4,
                 padding: "8px 14px", cursor: "pointer", fontFamily: "inherit", color: "#445566",
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.15s",
@@ -534,7 +590,7 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
 
               return (
                 <div key={scorePanelTi} style={{ marginBottom: 12, border: `1px solid ${isCurrentTopic ? "rgba(245,200,0,0.3)" : "#1e2940"}`, borderRadius: 6, overflow: "hidden" }}>
-                  <div onClick={() => setCollapsedScores(prev => { const next = new Set(prev); if (next.has(scorePanelTi)) next.delete(scorePanelTi); else next.add(scorePanelTi); return next; })}
+                  <div onClick={() => toggleScorePanel(scorePanelTi)}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", cursor: "pointer", userSelect: "none", background: isCurrentTopic ? "rgba(245,200,0,0.08)" : "#0f1726", borderBottom: isCollapsed ? "none" : "1px solid #1e2940" }}>
                     <span style={{ fontSize: 11, color: "#445566", display: "inline-block", transition: "transform 0.2s", transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}>{"\u25B6"}</span>
                     <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, letterSpacing: "0.06em", color: isCurrentTopic ? "#f5c800" : "#8899aa", flex: 1 }}>

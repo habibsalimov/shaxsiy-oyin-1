@@ -27,9 +27,28 @@ export function PlayerGameScreen({ gameState }) {
   const currentNominal = activeCell ? nominals[activeCell.ni] : null;
   const isGenericName = /^\d+-mavzu$/.test(currentTopicName);
 
+  // ─── Falstart support ────────────────────────────────────────────────────
+  const falstartEnabled = gameState?.settings?.falstart;
+  const falstartBlocked = gameState?.falstartBlocked || [];
+  const isFalstartBlocked = falstartBlocked.includes(myId);
+
+  // ─── Check if already answered wrong on current cell ────────────────────
+  const cellData = gameState?.cellData || {};
+  const attachments = gameState?.attachments || {};
+  const alreadyWrong = activeCell
+    ? (cellData[`${activeCell.ti}-${activeCell.ni}`]?.history || []).some(h => h.playerId === myId && h.result === "wrong")
+    : false;
+
   // ─── Derive phase ─────────────────────────────────────────────────────────
   const myBuzzed = buzzOrder.some(b => b.socketId === myId);
-  const phase = !activeCell ? "waiting" : timerEnd ? "active" : myBuzzed ? "buzzed" : buzzOrder.length > 0 ? "answering" : "waiting";
+  const phase = !activeCell ? "waiting"
+    : isFalstartBlocked ? "falstart"
+    : alreadyWrong ? "answered-wrong"
+    : timerEnd ? "active"
+    : myBuzzed ? "buzzed"
+    : buzzOrder.length > 0 ? "answering"
+    : (falstartEnabled && !timerEnd) ? "pre-timer"
+    : "waiting";
 
   // ─── Compute totals ───────────────────────────────────────────────────────
   const grandTotals = players.map(p => ({
@@ -41,9 +60,9 @@ export function PlayerGameScreen({ gameState }) {
 
   // ─── Real buzz via socket ─────────────────────────────────────────────────
   const handleBuzz = useCallback(() => {
-    if (phase !== "active" || myBuzzed) return;
+    if ((phase !== "active" && phase !== "pre-timer") || myBuzzed || isFalstartBlocked || alreadyWrong) return;
     emitEvent("buzz");
-  }, [phase, myBuzzed]);
+  }, [phase, myBuzzed, isFalstartBlocked, alreadyWrong]);
 
   // ─── Keyboard handler ────────────────────────────────────────────────────
   useEffect(() => {
@@ -105,6 +124,18 @@ export function PlayerGameScreen({ gameState }) {
           {!isGenericName && <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 26, letterSpacing: "0.04em", margin: "8px 0 0" }}>{currentTopicName}</div>}
         </div>
 
+        {activeCell && attachments[`${activeCell.ti}-${activeCell.ni}`] && (() => {
+          const att = attachments[`${activeCell.ti}-${activeCell.ni}`];
+          return (
+            <div style={{ maxWidth: 340, margin: "0 auto 12px", width: "100%" }}>
+              {att.type === "text"
+                ? <div style={{ background: "#1e2940", borderRadius: 6, padding: "12px 14px", fontSize: 14, color: "#f0f4ff", lineHeight: 1.5, textAlign: "center" }}>{att.content}</div>
+                : <img src={att.content} alt="" style={{ maxWidth: "100%", borderRadius: 6, maxHeight: 200, objectFit: "contain", display: "block", margin: "0 auto" }} />
+              }
+            </div>
+          );
+        })()}
+
         {phase === "active" && (
           <div style={{ maxWidth: 260, margin: "0 auto 12px", width: "100%" }}>
             <TimerDisplay timerEnd={timerEnd} timerSec={gameState?.settings?.timer || 7} />
@@ -121,9 +152,25 @@ export function PlayerGameScreen({ gameState }) {
             <span style={{ fontSize: 13, color: "#f5c800" }}>Siz {myPosition + 1}-o'rindasiz {"\xb7"} +{Math.abs(buzzOrder[myPosition].effectiveTime - buzzOrder[0].effectiveTime)}ms</span>
           </div>
         )}
-        {phase === "waiting" && (
+        {phase === "falstart" && (
+          <div style={{ background: "rgba(230,57,70,0.15)", border: "2px solid #e63946", borderRadius: 4, padding: 14, textAlign: "center", marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, color: "#e63946" }}>{"\u26A1"} FALSTART!</div>
+            <div style={{ fontSize: 12, color: "#e63946", marginTop: 4 }}>Bu savolga javob bera olmaysiz</div>
+          </div>
+        )}
+        {phase === "answered-wrong" && (
+          <div style={{ background: "rgba(230,57,70,0.1)", border: "1px solid rgba(230,57,70,0.3)", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: 13, color: "#e63946" }}>{"\u2717"} Siz bu savolga javob berdingiz</span>
+          </div>
+        )}
+        {phase === "pre-timer" && (
+          <div style={{ textAlign: "center", color: "#f5c800", fontSize: 13, marginBottom: 12 }}>
+            {"\u23F3"} Taymer hali boshlanmagan {"\xb7"} Bosishingiz mumkin
+          </div>
+        )}
+        {phase === "waiting" && !activeCell && (
           <div style={{ textAlign: "center", color: "#8899aa", fontSize: 13, marginBottom: 12 }}>
-            {!activeCell ? "\u23F3 Boshlovchi savolni tayyorlamoqda..." : "\u23F3 Javob kutilmoqda..."}
+            {"\u23F3"} Boshlovchi savolni tayyorlamoqda...
           </div>
         )}
 
@@ -134,22 +181,22 @@ export function PlayerGameScreen({ gameState }) {
               onMouseUp={() => { setPressing(false); handleBuzz(); }}
               onTouchStart={(e) => { e.preventDefault(); setPressing(true); }}
               onTouchEnd={(e) => { e.preventDefault(); setPressing(false); handleBuzz(); }}
-              disabled={phase !== "active"}
+              disabled={phase !== "active" && phase !== "pre-timer"}
               style={{
                 width: 170, height: 170, borderRadius: "50%",
-                border: `5px solid ${phase === "buzzed" && iAmFirst ? "#2ecc71" : myBuzzed ? "#445566" : "#f5c800"}`,
-                background: phase === "buzzed" && iAmFirst ? "#2ecc71" : pressing ? "#f5c800" : "#1e2940",
-                color: (pressing || (phase === "buzzed" && iAmFirst)) ? "#0a0e1a" : myBuzzed ? "#445566" : "#f5c800",
+                border: `5px solid ${(phase === "falstart" || phase === "answered-wrong") ? "#e63946" : phase === "buzzed" && iAmFirst ? "#2ecc71" : myBuzzed ? "#445566" : "#f5c800"}`,
+                background: (phase === "falstart" || phase === "answered-wrong") ? "rgba(230,57,70,0.15)" : phase === "buzzed" && iAmFirst ? "#2ecc71" : pressing ? "#f5c800" : "#1e2940",
+                color: (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : (pressing || (phase === "buzzed" && iAmFirst)) ? "#0a0e1a" : myBuzzed ? "#445566" : "#f5c800",
                 fontFamily: "'Anton', sans-serif", fontSize: 30, letterSpacing: "0.08em",
-                cursor: phase === "active" && !myBuzzed ? "pointer" : "default",
+                cursor: (phase === "active" || phase === "pre-timer") && !myBuzzed ? "pointer" : "default",
                 transition: "all 0.1s", transform: pressing ? "scale(0.92)" : "scale(1)",
-                boxShadow: phase === "active" && !myBuzzed ? "0 0 40px rgba(245,200,0,0.15)" : phase === "buzzed" && iAmFirst ? "0 0 50px rgba(46,204,113,0.5)" : "none",
+                boxShadow: phase === "active" && !myBuzzed ? "0 0 40px rgba(245,200,0,0.15)" : phase === "pre-timer" ? "0 0 30px rgba(245,200,0,0.08)" : phase === "buzzed" && iAmFirst ? "0 0 50px rgba(46,204,113,0.5)" : "none",
                 userSelect: "none",
               }}>
-              {phase === "buzzed" && iAmFirst ? "\uD83C\uDFA4" : myBuzzed ? "\u2713" : "JAVOB"}
+              {phase === "falstart" ? "\u26A1" : phase === "answered-wrong" ? "\u2717" : phase === "buzzed" && iAmFirst ? "\uD83C\uDFA4" : myBuzzed ? "\u2713" : "JAVOB"}
             </button>
-            <div style={{ marginTop: 10, fontSize: 11, color: "#8899aa" }}>
-              {phase === "active" ? "Bosing yoki SPACE" : myBuzzed ? "Siz bosdingiz!" : phase === "answering" ? "Javob kutilmoqda..." : "Kutilmoqda..."}
+            <div style={{ marginTop: 10, fontSize: 11, color: (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : "#8899aa" }}>
+              {phase === "falstart" ? "Falstart! Bu savolda javob bera olmaysiz" : phase === "answered-wrong" ? "Siz bu savolga javob berdingiz" : phase === "active" ? "Bosing yoki SPACE" : phase === "pre-timer" ? "Taymer kutilmoqda \xb7 Bosing yoki SPACE" : myBuzzed ? "Siz bosdingiz!" : phase === "answering" ? "Javob kutilmoqda..." : "Kutilmoqda..."}
             </div>
           </div>
         </div>

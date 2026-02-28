@@ -13,6 +13,7 @@ const io = new Server(httpServer, {
   cors: { origin: "*" },
   pingInterval: 5000,
   pingTimeout: 10000,
+  maxHttpBufferSize: 10e6, // 10MB for base64 image attachments
 });
 
 const gm = new GameManager();
@@ -81,6 +82,16 @@ io.on("connection", (socket) => {
     broadcastState(result.room);
   });
 
+  socket.on("start-game", () => {
+    const result = gm.startGame(socket.id);
+    if (!result) return;
+    if (result.error) {
+      socket.emit("error", { message: result.error });
+      return;
+    }
+    broadcastState(result.room);
+  });
+
   socket.on("start-timer", (data) => {
     const result = gm.startTimer(socket.id, data);
     if (!result) return;
@@ -126,6 +137,24 @@ io.on("connection", (socket) => {
 
   socket.on("skip-question", (data) => {
     const result = gm.skipQuestion(socket.id, data);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
+  socket.on("set-attachment", (data) => {
+    const result = gm.setAttachment(socket.id, data);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
+  socket.on("remove-attachment", (data) => {
+    const result = gm.removeAttachment(socket.id, data);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
+  socket.on("add-topic", (data) => {
+    const result = gm.addTopic(socket.id, data || {});
     if (!result) return;
     broadcastState(result.room);
   });

@@ -41,6 +41,7 @@ export class GameManager {
       currentTopicIdx: 0,
       activeCell: null,
       cellData: {},
+      attachments: {},
       timerEnd: null,
       timerTimeout: null,
       buzzOrder: [],
@@ -125,13 +126,30 @@ export class GameManager {
     return { room };
   }
 
+  startGame(socketId) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+    if (room.phase !== "lobby") return null;
+    if (room.players.length < 1) return { error: "Kamida 1 ta o'yinchi kerak" };
+    room.phase = "playing";
+    room.activeCell = { ti: 0, ni: 0 };
+    this._ensureTopicScores(room, 0);
+    return { room };
+  }
+
   startTimer(socketId, { ti, ni }) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;
+    if (room.phase !== "playing") return null;
+
+    // Clear "no_answer" from history so cell can be retried
+    const key = `${ti}-${ni}`;
+    if (room.cellData[key]) {
+      room.cellData[key].history = room.cellData[key].history.filter(h => h.result !== "no_answer");
+    }
 
     room.activeCell = { ti, ni };
     room.buzzOrder = [];
-    if (room.phase === "lobby") room.phase = "playing";
     this._ensureTopicScores(room, ti);
     room.currentTopicIdx = ti;
 
@@ -160,6 +178,15 @@ export class GameManager {
     if (room.blockedPlayers.has(socketId)) return null;
     if (room.falstartBlocked.has(socketId)) return null;
     if (room.buzzOrder.some(b => b.socketId === socketId)) return null;
+
+    // Block re-buzz if player already answered wrong on this cell
+    if (room.activeCell) {
+      const key = `${room.activeCell.ti}-${room.activeCell.ni}`;
+      const cell = room.cellData[key];
+      if (cell && cell.history.some(h => h.playerId === socketId && h.result === "wrong")) {
+        return null;
+      }
+    }
 
     const player = room.players.find(p => p.socketId === socketId);
     if (!player || !player.connected) return null;
@@ -262,6 +289,30 @@ export class GameManager {
     return { room };
   }
 
+  setAttachment(socketId, { ti, ni, type, content }) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+    const key = `${ti}-${ni}`;
+    room.attachments[key] = { type, content };
+    return { room };
+  }
+
+  removeAttachment(socketId, { ti, ni }) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+    const key = `${ti}-${ni}`;
+    delete room.attachments[key];
+    return { room };
+  }
+
+  addTopic(socketId, { name }) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+    const topicName = name || `${room.topicNames.length + 1}-mavzu`;
+    room.topicNames.push(topicName);
+    return { room };
+  }
+
   lockRoom(socketId) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;
@@ -355,6 +406,7 @@ export class GameManager {
       currentTopicIdx: room.currentTopicIdx,
       activeCell: room.activeCell,
       cellData: room.cellData,
+      attachments: room.attachments,
       timerEnd: room.timerEnd,
       buzzOrder: room.buzzOrder.map(b => ({ socketId: b.socketId, name: b.name, effectiveTime: b.effectiveTime })),
       falstartBlocked: [...room.falstartBlocked],
