@@ -447,25 +447,17 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                           <span style={{ color: h.result === "correct" ? "#2ecc71" : "#e63946", fontFamily: "'Anton', sans-serif", fontSize: 15 }}>
                                             {h.result === "correct" ? "+" : "\u2212"}{h.nominal}
                                           </span>
-                                          <button onClick={() => emitEvent("correct-score", { playerId: h.playerId, ti, ni: activeNominals.indexOf(h.nominal) !== -1 ? activeNominals.indexOf(h.nominal) : ni })} style={{
-                                            background: "transparent", border: "1px solid rgba(230,57,70,0.3)", borderRadius: 3, padding: "2px 6px",
-                                            fontSize: 9, color: "#e63946", cursor: "pointer", fontFamily: "inherit", fontWeight: 700,
-                                          }}>BEKOR</button>
                                         </>
                                       )}
                                     </div>
                                   ))}
                                 </div>
-                                {!hasCorrect && (
-                                  <div style={{ display: "flex", gap: 6 }}>
-                                    <Btn size="sm" variant="ghost" style={{ flex: 1 }} onClick={() => emitEvent("start-timer", { ti, ni })}>
-                                      {"\u21BB"} Qayta boshlash
-                                    </Btn>
-                                    <Btn size="sm" variant="success" style={{ flex: 1 }} onClick={skipQuestion}>
-                                      Keyingi savol {"\u2192"}
-                                    </Btn>
-                                  </div>
-                                )}
+                                <Btn size="sm" variant="danger" style={{ width: "100%" }} onClick={() => {
+                                  emitEvent("reset-cell", { ti, ni });
+                                  setExpandedCell(null);
+                                }}>
+                                  {"\uD83D\uDD04"} Natijani bekor qilish
+                                </Btn>
                               </>
                             ) : (
                               <>

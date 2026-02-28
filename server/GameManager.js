@@ -317,6 +317,36 @@ export class GameManager {
     return { room };
   }
 
+  resetCell(socketId, { ti, ni }) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+    if (room.phase !== "playing") return null;
+
+    const key = `${ti}-${ni}`;
+    // Clear history
+    room.cellData[key] = { history: [] };
+
+    // Null out scores for all players at this nominal
+    const nom = room.settings.nominals[ni];
+    if (room.topicScores[ti]) {
+      for (const playerId of Object.keys(room.topicScores[ti])) {
+        if (room.topicScores[ti][playerId] && room.topicScores[ti][playerId][nom] !== undefined) {
+          room.topicScores[ti][playerId][nom] = null;
+        }
+      }
+    }
+
+    // Re-activate this cell
+    room.activeCell = { ti, ni };
+    room.currentTopicIdx = ti;
+    clearTimeout(room.timerTimeout);
+    room.timerEnd = null;
+    room.buzzOrder = [];
+    room.falstartBlocked = new Set();
+
+    return { room };
+  }
+
   addTopic(socketId, { name }) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;

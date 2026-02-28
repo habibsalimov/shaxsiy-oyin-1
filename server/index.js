@@ -159,6 +159,12 @@ io.on("connection", (socket) => {
     io.to(result.room.code).emit("attachment-update", { key, data: result.room.attachments[key] || null });
   });
 
+  socket.on("reset-cell", (data) => {
+    const result = gm.resetCell(socket.id, data);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
   socket.on("add-topic", (data) => {
     const result = gm.addTopic(socket.id, data || {});
     if (!result) return;
