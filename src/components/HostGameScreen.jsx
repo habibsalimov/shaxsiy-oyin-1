@@ -21,6 +21,7 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
   // Attachments now synced via server (gameState.attachments)
   // Local cell lock state (host-only, not synced to server)
   const [localLocks, setLocalLocks] = useState({});
+  const [lightboxSrc, setLightboxSrc] = useState(null);
   // Expanded history panel for old (done) cells
   const [expandedCell, setExpandedCell] = useState(null);
 
@@ -470,7 +471,7 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                               <>
                                 {attachment?.image && (
                                   <div style={{ marginBottom: 10, position: "relative" }}>
-                                    <img src={attachment.image} alt="" style={{ maxWidth: "100%", borderRadius: 4, maxHeight: 120, objectFit: "cover" }} />
+                                    <img src={attachment.image} alt="" onClick={() => setLightboxSrc(attachment.image)} style={{ maxWidth: "100%", borderRadius: 4, maxHeight: 120, objectFit: "cover", cursor: "pointer" }} />
                                     <button onClick={() => removeAttachment(ti, ni, "image")} style={{ position: "absolute", top: 4, right: 4, background: "#e63946", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
                                   </div>
                                 )}
@@ -626,6 +627,12 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
               <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>{`Katakchani bosib natijani o${T}zgartirish mumkin (null \u2192 to${T}g${T}ri \u2192 noto${T}g${T}ri \u2192 null)`}</div>
             )}
           </div>
+        </div>
+      )}
+      {lightboxSrc && (
+        <div onClick={() => setLightboxSrc(null)} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button onClick={() => setLightboxSrc(null)} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "#fff", fontSize: 28, cursor: "pointer", zIndex: 1 }}>{"\u2715"}</button>
+          <img src={lightboxSrc} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 8, cursor: "default" }} />
         </div>
       )}
     </div>

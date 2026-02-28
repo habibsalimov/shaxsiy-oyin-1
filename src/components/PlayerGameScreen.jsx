@@ -8,6 +8,7 @@ import { ScoreBoard } from './ScoreBoard.jsx';
 export function PlayerGameScreen({ gameState }) {
   const [pressing, setPressing] = useState(false);
   const [expandedDetail, setExpandedDetail] = useState(new Set());
+  const [lightboxSrc, setLightboxSrc] = useState(null);
 
   // ─── Derive everything from gameState ─────────────────────────────────────
   const myId = getSocketId() || "";
@@ -128,7 +129,7 @@ export function PlayerGameScreen({ gameState }) {
           const att = attachments[`${activeCell.ti}-${activeCell.ni}`];
           return (
             <div style={{ maxWidth: 340, margin: "0 auto 12px", width: "100%" }}>
-              {att.image && <img src={att.image} alt="" style={{ maxWidth: "100%", borderRadius: 6, maxHeight: 200, objectFit: "contain", display: "block", margin: "0 auto", marginBottom: att.text ? 8 : 0 }} />}
+              {att.image && <img src={att.image} alt="" onClick={() => setLightboxSrc(att.image)} style={{ maxWidth: "100%", borderRadius: 6, maxHeight: 200, objectFit: "contain", display: "block", margin: "0 auto", marginBottom: att.text ? 8 : 0, cursor: "pointer" }} />}
               {att.text && <div style={{ background: "#1e2940", borderRadius: 6, padding: "12px 14px", fontSize: 14, color: "#f0f4ff", lineHeight: 1.5, textAlign: "center" }}>{att.text}</div>}
             </div>
           );
@@ -254,6 +255,12 @@ export function PlayerGameScreen({ gameState }) {
           ))}
         </div>
       </div>
+      {lightboxSrc && (
+        <div onClick={() => setLightboxSrc(null)} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button onClick={() => setLightboxSrc(null)} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "#fff", fontSize: 28, cursor: "pointer", zIndex: 1 }}>{"\u2715"}</button>
+          <img src={lightboxSrc} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 8, cursor: "default" }} />
+        </div>
+      )}
     </div>
   );
 }
