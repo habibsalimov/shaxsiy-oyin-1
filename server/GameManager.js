@@ -198,16 +198,15 @@ export class GameManager {
         room.falstartBlocked.add(socketId);
         return { room, falstart: true };
       }
-      // Falstart disabled: silently reject
-      return null;
+      // Falstart disabled: allow buzz freely (no timer to stop)
     }
 
     const effectiveTime = Date.now() - Math.floor(player.latency / 2);
     room.buzzOrder.push({ socketId, name: player.name, effectiveTime });
     room.buzzOrder.sort((a, b) => a.effectiveTime - b.effectiveTime);
 
-    // Stop timer on first buzz
-    if (room.buzzOrder.length === 1) {
+    // Stop timer on first buzz (only if timer is running)
+    if (room.timerEnd && room.buzzOrder.length === 1) {
       clearTimeout(room.timerTimeout);
       room.timerEnd = null;
     }
@@ -419,7 +418,6 @@ export class GameManager {
       currentTopicIdx: room.currentTopicIdx,
       activeCell: room.activeCell,
       cellData: room.cellData,
-      attachments: room.attachments,
       timerEnd: room.timerEnd,
       buzzOrder: room.buzzOrder.map(b => ({ socketId: b.socketId, name: b.name, effectiveTime: b.effectiveTime })),
       falstartBlocked: [...room.falstartBlocked],

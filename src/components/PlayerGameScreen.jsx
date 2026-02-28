@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { T } from '../utils/constants.js';
 import { getTotal } from '../utils/scoring.js';
 import { getSocketId, emitEvent } from '../socket.js';
 import { Badge, TimerDisplay } from './ui/index.js';
 import { ScoreBoard } from './ScoreBoard.jsx';
 
-export function PlayerGameScreen({ gameState }) {
+export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   const [pressing, setPressing] = useState(false);
   const [expandedDetail, setExpandedDetail] = useState(new Set());
   const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [imgLoaded, setImgLoaded] = useState(null);
 
   // ─── Derive everything from gameState ─────────────────────────────────────
   const myId = getSocketId() || "";
@@ -35,7 +36,7 @@ export function PlayerGameScreen({ gameState }) {
 
   // ─── Check if already answered wrong on current cell ────────────────────
   const cellData = gameState?.cellData || {};
-  const attachments = gameState?.attachments || {};
+  const attachments = attachmentsProp || {};
   const alreadyWrong = activeCell
     ? (cellData[`${activeCell.ti}-${activeCell.ni}`]?.history || []).some(h => h.playerId === myId && h.result === "wrong")
     : false;
@@ -48,13 +49,15 @@ export function PlayerGameScreen({ gameState }) {
     : timerEnd ? "active"
     : myBuzzed ? "buzzed"
     : buzzOrder.length > 0 ? "answering"
-    : (falstartEnabled && !timerEnd) ? "pre-timer"
-    : "waiting";
+    : "pre-timer";
 
-  // ─── Compute totals ───────────────────────────────────────────────────────
-  const grandTotals = players.map(p => ({
-    ...p, total: topicScores.reduce((sum, ts) => sum + getTotal(ts, p.socketId, nominals), 0),
-  })).sort((a, b) => b.total - a.total);
+  // ─── Compute totals (memoized) ──────────────────────────────────────────
+  const grandTotals = useMemo(() =>
+    players.map(p => ({
+      ...p, total: topicScores.reduce((sum, ts) => sum + getTotal(ts, p.socketId, nominals), 0),
+    })).sort((a, b) => b.total - a.total),
+    [players, topicScores, nominals]
+  );
 
   const myTotal = grandTotals.find(p => p.socketId === myId)?.total ?? 0;
   const myRank  = grandTotals.findIndex(p => p.socketId === myId) + 1;
@@ -64,6 +67,10 @@ export function PlayerGameScreen({ gameState }) {
     if ((phase !== "active" && phase !== "pre-timer") || myBuzzed || isFalstartBlocked || alreadyWrong) return;
     emitEvent("buzz");
   }, [phase, myBuzzed, isFalstartBlocked, alreadyWrong]);
+
+  // ─── Reset image loading state on cell change ───────────────────────────
+  const activeCellKey = activeCell ? `${activeCell.ti}-${activeCell.ni}` : null;
+  useEffect(() => { setImgLoaded(null); }, [activeCellKey]);
 
   // ─── Keyboard handler ────────────────────────────────────────────────────
   useEffect(() => {
@@ -125,12 +132,24 @@ export function PlayerGameScreen({ gameState }) {
           {!isGenericName && <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 26, letterSpacing: "0.04em", margin: "8px 0 0" }}>{currentTopicName}</div>}
         </div>
 
-        {activeCell && attachments[`${activeCell.ti}-${activeCell.ni}`] && (() => {
-          const att = attachments[`${activeCell.ti}-${activeCell.ni}`];
+        {activeCell && attachments[activeCellKey] && (() => {
+          const att = attachments[activeCellKey];
+          const isImgReady = !att.image || imgLoaded === activeCellKey;
           return (
             <div style={{ maxWidth: 340, margin: "0 auto 12px", width: "100%" }}>
-              {att.image && <img src={att.image} alt="" onClick={() => setLightboxSrc(att.image)} style={{ maxWidth: "100%", borderRadius: 6, maxHeight: 200, objectFit: "contain", display: "block", margin: "0 auto", marginBottom: att.text ? 8 : 0, cursor: "pointer" }} />}
-              {att.text && <div style={{ background: "#1e2940", borderRadius: 6, padding: "12px 14px", fontSize: 14, color: "#f0f4ff", lineHeight: 1.5, textAlign: "center" }}>{att.text}</div>}
+              {att.image && (
+                <>
+                  {!isImgReady && (
+                    <div style={{ width: "100%", height: 140, borderRadius: 6, background: "linear-gradient(90deg, #1e2940 25%, #253350 50%, #1e2940 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s ease infinite", marginBottom: att.text ? 8 : 0 }} />
+                  )}
+                  <img src={att.image} alt="" onClick={() => setLightboxSrc(att.image)}
+                    onLoad={() => setImgLoaded(activeCellKey)}
+                    style={{ maxWidth: "100%", borderRadius: 6, maxHeight: 200, objectFit: "contain", display: isImgReady ? "block" : "none", margin: "0 auto", marginBottom: att.text ? 8 : 0, cursor: "pointer", animation: isImgReady ? "fadeIn 0.3s ease both" : "none" }} />
+                </>
+              )}
+              {att.text && (
+                <div style={{ background: "#1e2940", borderRadius: 6, padding: "12px 14px", fontSize: 14, color: "#f0f4ff", lineHeight: 1.5, textAlign: "center", animation: "fadeIn 0.3s ease both" }}>{att.text}</div>
+              )}
             </div>
           );
         })()}

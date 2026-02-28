@@ -79,6 +79,10 @@ io.on("connection", (socket) => {
     if (result.isHost) {
       socket.emit("room-created", { code: result.room.code });
     }
+    // Send all attachments to joining client (one-time, not in game-state)
+    if (Object.keys(result.room.attachments).length > 0) {
+      socket.emit("attachments-sync", result.room.attachments);
+    }
     broadcastState(result.room);
   });
 
@@ -144,13 +148,15 @@ io.on("connection", (socket) => {
   socket.on("set-attachment", (data) => {
     const result = gm.setAttachment(socket.id, data);
     if (!result) return;
-    broadcastState(result.room);
+    const key = `${data.ti}-${data.ni}`;
+    io.to(result.room.code).emit("attachment-update", { key, data: result.room.attachments[key] });
   });
 
   socket.on("remove-attachment", (data) => {
     const result = gm.removeAttachment(socket.id, data);
     if (!result) return;
-    broadcastState(result.room);
+    const key = `${data.ti}-${data.ni}`;
+    io.to(result.room.code).emit("attachment-update", { key, data: result.room.attachments[key] || null });
   });
 
   socket.on("add-topic", (data) => {

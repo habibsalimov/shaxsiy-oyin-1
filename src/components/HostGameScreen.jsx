@@ -6,7 +6,7 @@ import { Btn, Badge, Card, Label, Input, TimerDisplay } from './ui/index.js';
 import { ScoreBoard } from './ScoreBoard.jsx';
 import { SettingsPanel } from './SettingsPanel.jsx';
 
-export function HostGameScreen({ gameState, roomCode, onFinish }) {
+export function HostGameScreen({ gameState, roomCode, attachments: attachmentsProp, onFinish }) {
   // ─── Local UI-only state ───────────────────────────────────────────────────
   const [editingTopic, setEditingTopic] = useState(null);
   const [editValue, setEditValue]     = useState("");
@@ -155,7 +155,7 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
   };
 
   // ─── Attachment handling (synced via server) ─────────────────────────────
-  const serverAttachments = gameState?.attachments || {};
+  const serverAttachments = attachmentsProp || {};
   const getAttachment = (ti, ni) => serverAttachments[cellKey(ti, ni)] || null;
   const getLocalLock = (ti, ni) => localLocks[cellKey(ti, ni)] || false;
 

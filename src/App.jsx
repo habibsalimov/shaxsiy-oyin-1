@@ -56,6 +56,7 @@ export default function App() {
     return hash.startsWith("#results/") ? "results" : "landing";
   });
   const [gameState, setGameState]   = useState(null);
+  const [attachments, setAttachments] = useState({});
   const [roomCode, setRoomCode]     = useState(null);
   const [isHost, setIsHost]         = useState(false);
   const [connected, setConnected]   = useState(false);
@@ -117,6 +118,18 @@ export default function App() {
       sessionStorage.removeItem("game-session");
     });
 
+    const unsub6 = onEvent("attachment-update", ({ key, data }) => {
+      setAttachments(prev => {
+        const next = { ...prev };
+        if (data) next[key] = data; else delete next[key];
+        return next;
+      });
+    });
+
+    const unsub7 = onEvent("attachments-sync", (allAttachments) => {
+      setAttachments(allAttachments);
+    });
+
     const unsub4 = onEvent("error", ({ message }) => {
       console.error("Server error:", message);
       setErrorMsg(message);
@@ -138,7 +151,7 @@ export default function App() {
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
-      unsub1(); unsub2(); unsub3(); unsub4(); unsub5();
+      unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); unsub7();
     };
   }, []);
 
@@ -155,6 +168,7 @@ export default function App() {
         body { background: #0a0e1a; font-family: 'Montserrat', 'Segoe UI', sans-serif, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji'; }
         @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes pulse  { from { opacity:1; } to { opacity:0.55; } }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #111827; }
         ::-webkit-scrollbar-thumb { background: #1e2940; border-radius: 3px; }
@@ -201,11 +215,12 @@ export default function App() {
           <HostGameScreen
             gameState={gameState}
             roomCode={roomCode}
+            attachments={attachments}
             onFinish={() => emitEvent("finish-game")}
           />
         )}
         {screen === "playerGame" && (
-          <PlayerGameScreen gameState={gameState} />
+          <PlayerGameScreen gameState={gameState} attachments={attachments} />
         )}
         {screen === "results" && (
           <ResultsScreen
