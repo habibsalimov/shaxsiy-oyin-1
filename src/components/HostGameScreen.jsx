@@ -176,8 +176,8 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
     reader.readAsDataURL(file);
   };
 
-  const removeAttachment = (ti, ni) => {
-    emitEvent("remove-attachment", { ti, ni });
+  const removeAttachment = (ti, ni, type) => {
+    emitEvent("remove-attachment", { ti, ni, type });
   };
 
   const toggleLocalLock = (ti, ni) => {
@@ -414,7 +414,8 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                           </span>
                           <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: isActive ? "#f5c800" : isDone ? "#8899aa" : "#f0f4ff", minWidth: 36 }}>{nom}</span>
                           <span style={{ fontSize: 11, color: "#445566", flex: 1, fontStyle: "italic" }}>{topicName}</span>
-                          {attachment && <span style={{ fontSize: 12 }}>{attachment.type === "image" ? "\uD83D\uDDBC\uFE0F" : "\uD83D\uDCDD"}</span>}
+                          {attachment?.image && <span style={{ fontSize: 12 }}>{"\uD83D\uDDBC\uFE0F"}</span>}
+                          {attachment?.text && <span style={{ fontSize: 12 }}>{"\uD83D\uDCDD"}</span>}
                           {isLocked && <span style={{ fontSize: 12 }}>{"\uD83D\uDD12"}</span>}
                           {isDone && (
                             <button onClick={e => { e.stopPropagation(); setExpandedCell(expandedCell === cellKey(ti, ni) ? null : cellKey(ti, ni)); }} style={{
@@ -467,13 +468,16 @@ export function HostGameScreen({ gameState, roomCode, onFinish }) {
                               </>
                             ) : (
                               <>
-                                {attachment && (
+                                {attachment?.image && (
                                   <div style={{ marginBottom: 10, position: "relative" }}>
-                                    {attachment.type === "text"
-                                      ? <div style={{ background: "#1e2940", borderRadius: 4, padding: "10px 12px", fontSize: 13, color: "#f0f4ff", lineHeight: 1.5 }}>{attachment.content}</div>
-                                      : <img src={attachment.content} alt="" style={{ maxWidth: "100%", borderRadius: 4, maxHeight: 120, objectFit: "cover" }} />
-                                    }
-                                    <button onClick={() => removeAttachment(ti, ni)} style={{ position: "absolute", top: 4, right: 4, background: "#e63946", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
+                                    <img src={attachment.image} alt="" style={{ maxWidth: "100%", borderRadius: 4, maxHeight: 120, objectFit: "cover" }} />
+                                    <button onClick={() => removeAttachment(ti, ni, "image")} style={{ position: "absolute", top: 4, right: 4, background: "#e63946", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
+                                  </div>
+                                )}
+                                {attachment?.text && (
+                                  <div style={{ marginBottom: 10, position: "relative" }}>
+                                    <div style={{ background: "#1e2940", borderRadius: 4, padding: "10px 12px", fontSize: 13, color: "#f0f4ff", lineHeight: 1.5 }}>{attachment.text}</div>
+                                    <button onClick={() => removeAttachment(ti, ni, "text")} style={{ position: "absolute", top: 4, right: 4, background: "#e63946", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
                                   </div>
                                 )}
 

@@ -128,10 +128,8 @@ export function PlayerGameScreen({ gameState }) {
           const att = attachments[`${activeCell.ti}-${activeCell.ni}`];
           return (
             <div style={{ maxWidth: 340, margin: "0 auto 12px", width: "100%" }}>
-              {att.type === "text"
-                ? <div style={{ background: "#1e2940", borderRadius: 6, padding: "12px 14px", fontSize: 14, color: "#f0f4ff", lineHeight: 1.5, textAlign: "center" }}>{att.content}</div>
-                : <img src={att.content} alt="" style={{ maxWidth: "100%", borderRadius: 6, maxHeight: 200, objectFit: "contain", display: "block", margin: "0 auto" }} />
-              }
+              {att.image && <img src={att.image} alt="" style={{ maxWidth: "100%", borderRadius: 6, maxHeight: 200, objectFit: "contain", display: "block", margin: "0 auto", marginBottom: att.text ? 8 : 0 }} />}
+              {att.text && <div style={{ background: "#1e2940", borderRadius: 6, padding: "12px 14px", fontSize: 14, color: "#f0f4ff", lineHeight: 1.5, textAlign: "center" }}>{att.text}</div>}
             </div>
           );
         })()}

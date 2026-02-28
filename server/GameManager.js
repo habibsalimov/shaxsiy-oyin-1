@@ -293,15 +293,28 @@ export class GameManager {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;
     const key = `${ti}-${ni}`;
-    room.attachments[key] = { type, content };
+    const existing = room.attachments[key] || {};
+    if (type === "text") {
+      existing.text = content;
+    } else if (type === "image") {
+      existing.image = content;
+    }
+    room.attachments[key] = existing;
     return { room };
   }
 
-  removeAttachment(socketId, { ti, ni }) {
+  removeAttachment(socketId, { ti, ni, type }) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;
     const key = `${ti}-${ni}`;
-    delete room.attachments[key];
+    if (type && room.attachments[key]) {
+      delete room.attachments[key][type];
+      if (!room.attachments[key].text && !room.attachments[key].image) {
+        delete room.attachments[key];
+      }
+    } else {
+      delete room.attachments[key];
+    }
     return { room };
   }
 
