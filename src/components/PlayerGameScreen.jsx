@@ -58,7 +58,7 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
     : alreadyWrong ? "answered-wrong"
     : timerEnd ? "active"
     : myBuzzed ? "buzzed"
-    : buzzOrder.length > 0 ? "answering"
+    : buzzOrder.length > 0 ? "active"
     : "pre-timer";
 
   // ─── Compute totals (memoized) ──────────────────────────────────────────

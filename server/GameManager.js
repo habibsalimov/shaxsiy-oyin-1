@@ -47,6 +47,7 @@ export class GameManager {
       timerTimeout: null,
       buzzOrder: [],
       falstartBlocked: new Set(),
+      timerStarted: false,
       cellLocked: false,
     };
     this.rooms.set(code, room);
@@ -187,6 +188,7 @@ export class GameManager {
       // Stop timer and clear buzz state when locking
       clearTimeout(room.timerTimeout);
       room.timerEnd = null;
+      room.timerStarted = false;
       room.buzzOrder = [];
       room.falstartBlocked = new Set();
     }
@@ -213,6 +215,7 @@ export class GameManager {
 
     const ms = room.settings.timer * 1000;
     room.timerEnd = Date.now() + ms;
+    room.timerStarted = true;
     clearTimeout(room.timerTimeout);
 
     return { room, timerEnd: room.timerEnd, ti, ni, ms };
@@ -220,6 +223,7 @@ export class GameManager {
 
   handleTimerExpiry(room, ti, ni) {
     room.timerEnd = null;
+    room.timerStarted = false;
     const key = `${ti}-${ni}`;
     if (!room.cellData[key]) room.cellData[key] = { history: [] };
     const cell = room.cellData[key];
@@ -264,12 +268,15 @@ export class GameManager {
 
     // Timer not running yet
     if (!room.timerEnd) {
-      // Falstart enabled: penalize this player for the current cell
-      if (room.settings.falstart && room.activeCell) {
-        room.falstartBlocked.add(socketId);
-        return { room, falstart: true };
+      // Falstart only applies before timer has ever been started for this cell
+      if (!room.timerStarted) {
+        if (room.settings.falstart && room.activeCell) {
+          room.falstartBlocked.add(socketId);
+          return { room, falstart: true };
+        }
+        // Falstart disabled: allow buzz freely (no timer to stop)
       }
-      // Falstart disabled: allow buzz freely (no timer to stop)
+      // Timer was started but stopped by first buzz — allow freely
     }
 
     const effectiveTime = Date.now() - Math.floor(player.latency / 2);
@@ -315,6 +322,7 @@ export class GameManager {
       room.falstartBlocked = new Set();
       clearTimeout(room.timerTimeout);
       room.timerEnd = null;
+      room.timerStarted = false;
       // Auto-advance to next open cell (skips already-done cells)
       const next = this._findNextOpenCell(room, ti, ni);
       if (next) {
@@ -343,6 +351,7 @@ export class GameManager {
 
     clearTimeout(room.timerTimeout);
     room.timerEnd = null;
+    room.timerStarted = false;
     room.buzzOrder = [];
     room.falstartBlocked = new Set();
 
@@ -414,6 +423,7 @@ export class GameManager {
     room.currentTopicIdx = ti;
     clearTimeout(room.timerTimeout);
     room.timerEnd = null;
+    room.timerStarted = false;
     room.buzzOrder = [];
     room.falstartBlocked = new Set();
 
@@ -524,6 +534,7 @@ export class GameManager {
       activeCell: room.activeCell,
       cellData: room.cellData,
       timerEnd: room.timerEnd,
+      timerStarted: room.timerStarted || false,
       buzzOrder: room.buzzOrder.map(b => ({ socketId: b.socketId, name: b.name, effectiveTime: b.effectiveTime })),
       falstartBlocked: [...room.falstartBlocked],
       cellLocked: room.cellLocked || false,

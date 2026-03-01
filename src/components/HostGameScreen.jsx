@@ -477,12 +477,29 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                     </div>
                                   ))}
                                 </div>
-                                <Btn size="sm" variant="danger" style={{ width: "100%" }} onClick={() => {
-                                  emitEvent("reset-cell", { ti, ni });
-                                  setExpandedCell(null);
-                                }}>
-                                  {"\uD83D\uDD04"} Natijani bekor qilish
-                                </Btn>
+                                {confirmReset === cellKey(ti, ni) ? (
+                                  <div style={{ border: "1px solid rgba(230,57,70,0.4)", borderRadius: 6, padding: "10px 12px", background: "rgba(230,57,70,0.06)" }}>
+                                    <div style={{ fontSize: 12, color: "#f0f4ff", marginBottom: 10, lineHeight: 1.4 }}>
+                                      Ushbu savoldagi barcha natijalar bekor qilinadi. Davom etasizmi?
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                      <Btn size="sm" variant="danger" style={{ flex: 1 }} onClick={() => {
+                                        emitEvent("reset-cell", { ti, ni });
+                                        setExpandedCell(null);
+                                        setConfirmReset(null);
+                                      }}>
+                                        Ha, bekor qilish
+                                      </Btn>
+                                      <Btn size="sm" variant="ghost" style={{ flex: 1 }} onClick={() => setConfirmReset(null)}>
+                                        Bekor
+                                      </Btn>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <Btn size="sm" variant="danger" style={{ width: "100%" }} onClick={() => setConfirmReset(cellKey(ti, ni))}>
+                                    {"\uD83D\uDD04"} Natijani bekor qilish
+                                  </Btn>
+                                )}
                               </>
                             ) : (
                               <>
