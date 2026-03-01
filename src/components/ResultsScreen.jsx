@@ -35,6 +35,7 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
   if (!data) return <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ color:"#8899aa" }}>Yuklanmoqda...</div></div>;
 
   const nominals       = data.nominals || DEFAULT_NOMINALS;
+  const topicNominalsData = data.topicNominals || [];
   const topicScoresData = data.topicScores || [];
   const topicNamesData  = data.topicNames  || [];
   const playersData     = data.players     || [];
@@ -47,7 +48,7 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
   const toggleTopic = (ti) => setCollapsedTopics(prev => { const next = new Set(prev); if (next.has(ti)) next.delete(ti); else next.add(ti); return next; });
 
   const ranked = playersData
-    .map(p => ({ ...p, total: topicScoresData.reduce((sum, ts) => sum + getTotal(ts, p.socketId, nominals), 0) }))
+    .map(p => ({ ...p, total: topicScoresData.reduce((sum, ts, idx) => sum + getTotal(ts, p.socketId, topicNominalsData[idx] || nominals), 0) }))
     .sort((a, b) => b.total - a.total);
   const medals = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
 
@@ -60,8 +61,8 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
   );
 
   const downloadCSV = () => {
-    const header = ["\u2116", "O'yinchi", "JAMI", ...topicScoresData.flatMap((_, ti) => [...nominals.map(n => `${ti+1}-mavzu ${n}`), `TUR (${topicNamesData[ti] || `${ti+1}-mavzu`})`])];
-    const rows = [...ranked].map((p, i) => [i+1, p.name, p.total, ...topicScoresData.flatMap(ts => [...nominals.map(n => { const r = ts[p.socketId]?.[n]; return r === "correct" ? n : r === "wrong" ? -n : ""; }), getTotal(ts, p.socketId, nominals)])]);
+    const header = ["\u2116", "O'yinchi", "JAMI", ...topicScoresData.flatMap((_, ti) => { const noms = topicNominalsData[ti] || nominals; return [...noms.map(n => `${ti+1}-mavzu ${n}`), `TUR (${topicNamesData[ti] || `${ti+1}-mavzu`})`]; })];
+    const rows = [...ranked].map((p, i) => [i+1, p.name, p.total, ...topicScoresData.flatMap((ts, ti) => { const noms = topicNominalsData[ti] || nominals; return [...noms.map(n => { const r = ts[p.socketId]?.[n]; return r === "correct" ? n : r === "wrong" ? -n : ""; }), getTotal(ts, p.socketId, noms)]; })]);
     const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -116,7 +117,7 @@ export function ResultsScreen({ gameResult, archiveId, onRestart }) {
                   <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, letterSpacing: "0.06em", color: "#8899aa", flex: 1 }}>{ti + 1}. {topicNamesData[ti] || `${ti+1}-mavzu`}</span>
                   <span style={{ fontSize: 10, color: "#445566" }}>tugadi</span>
                 </div>
-                {!isCollapsed && <ScoreBoard scores={tScores} players={playersData} nominals={nominals} currentNominal={null} isHost={false} allTopicScores={topicScoresData} />}
+                {!isCollapsed && <ScoreBoard scores={tScores} players={playersData} nominals={topicNominalsData[ti] || nominals} currentNominal={null} isHost={false} allTopicScores={topicScoresData} topicNominals={topicNominalsData} />}
               </div>
             );
           })}

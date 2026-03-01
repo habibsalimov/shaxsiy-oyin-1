@@ -119,6 +119,22 @@ export class GameManager {
     return room.topicNominals[ti] || room.settings.nominals;
   }
 
+  _findNextOpenCell(room, afterTi, afterNi) {
+    const isDone = (ti, ni) => {
+      const h = room.cellData[`${ti}-${ni}`]?.history || [];
+      return h.some(e => e.result === "correct" || e.result === "no_answer" || e.result === "skipped");
+    };
+    // Search from (afterTi, afterNi+1) forward
+    for (let ti = afterTi; ti < room.topicNames.length; ti++) {
+      const noms = this._getTopicNominals(room, ti);
+      const startNi = ti === afterTi ? afterNi + 1 : 0;
+      for (let ni = startNi; ni < noms.length; ni++) {
+        if (!isDone(ti, ni)) return { ti, ni };
+      }
+    }
+    return null;
+  }
+
   updateSettings(socketId, { timer, nominals, falstart }) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;
@@ -287,14 +303,14 @@ export class GameManager {
       room.falstartBlocked = new Set();
       clearTimeout(room.timerTimeout);
       room.timerEnd = null;
-      // Auto-advance
-      const nextNi = ni + 1;
-      if (nextNi < topicNoms.length) {
-        room.activeCell = { ti, ni: nextNi };
-      } else if (ti + 1 < room.topicNames.length) {
-        room.currentTopicIdx = ti + 1;
-        room.activeCell = { ti: ti + 1, ni: 0 };
-        this._ensureTopicScores(room, ti + 1);
+      // Auto-advance to next open cell (skips already-done cells)
+      const next = this._findNextOpenCell(room, ti, ni);
+      if (next) {
+        room.activeCell = next;
+        if (next.ti !== ti) {
+          room.currentTopicIdx = next.ti;
+          this._ensureTopicScores(room, next.ti);
+        }
       } else {
         room.activeCell = null;
       }
@@ -318,14 +334,14 @@ export class GameManager {
     room.buzzOrder = [];
     room.falstartBlocked = new Set();
 
-    const topicNoms = this._getTopicNominals(room, ti);
-    const nextNi = ni + 1;
-    if (nextNi < topicNoms.length) {
-      room.activeCell = { ti, ni: nextNi };
-    } else if (ti + 1 < room.topicNames.length) {
-      room.currentTopicIdx = ti + 1;
-      room.activeCell = { ti: ti + 1, ni: 0 };
-      this._ensureTopicScores(room, ti + 1);
+    // Auto-advance to next open cell (skips already-done cells)
+    const next = this._findNextOpenCell(room, ti, ni);
+    if (next) {
+      room.activeCell = next;
+      if (next.ti !== ti) {
+        room.currentTopicIdx = next.ti;
+        this._ensureTopicScores(room, next.ti);
+      }
     } else {
       room.activeCell = null;
     }

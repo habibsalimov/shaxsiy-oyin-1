@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getTotal } from '../utils/scoring.js';
 import { DEFAULT_NOMINALS } from '../utils/constants.js';
 
-export function ScoreBoard({ scores, players, nominals: nominalsProp, currentNominal, isHost, onCellClick, allTopicScores, blockedPlayers: blockedProp }) {
+export function ScoreBoard({ scores, players, nominals: nominalsProp, currentNominal, isHost, onCellClick, allTopicScores, blockedPlayers: blockedProp, topicNominals }) {
   const nominals = nominalsProp || DEFAULT_NOMINALS;
   const sep = "1px solid #2a3a52";
   const blockedSet = blockedProp || new Set();
@@ -65,12 +65,13 @@ export function ScoreBoard({ scores, players, nominals: nominalsProp, currentNom
               if (!allTopicScores) return turTotal;
               const myIdx = allTopicScores.indexOf(scores);
               const isCurrentTopic = myIdx === allTopicScores.length - 1;
+              const getNomsForTopic = (idx) => topicNominals?.[idx] || nominals;
               if (isCurrentTopic) {
-                return allTopicScores.reduce((sum, ts) => sum + getTotal(ts, p.socketId, nominals), 0);
+                return allTopicScores.reduce((sum, ts, idx) => sum + getTotal(ts, p.socketId, getNomsForTopic(idx)), 0);
               } else {
                 return scores.__snapshot?.[p.socketId] ?? allTopicScores
                   .slice(0, myIdx + 1)
-                  .reduce((sum, ts) => sum + getTotal(ts, p.socketId, nominals), 0);
+                  .reduce((sum, ts, idx) => sum + getTotal(ts, p.socketId, getNomsForTopic(idx)), 0);
               }
             })();
             const isBlocked = blockedSet.has(p.socketId);

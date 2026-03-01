@@ -248,8 +248,24 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
       </div>
 
       {settingsOpen && (
-        <div style={{ background: "#111827", borderBottom: "1px solid #1e2940", padding: "16px 24px", animation: "fadeIn 0.15s ease both" }}>
-          <div style={{ maxWidth: 520 }}>
+        <div onClick={() => setSettingsOpen(false)} style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          animation: "fadeIn 0.15s ease both",
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: "#111827", border: "1px solid #2a3a52",
+            borderRadius: 12, padding: "20px 24px", width: "90%", maxWidth: 440,
+            maxHeight: "80vh", overflowY: "auto",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#8899aa", textTransform: "uppercase" }}>Sozlamalar</span>
+              <button onClick={() => setSettingsOpen(false)} style={{
+                background: "none", border: "none", color: "#8899aa", fontSize: 18,
+                cursor: "pointer", padding: "2px 6px", lineHeight: 1,
+              }}>{"\u2715"}</button>
+            </div>
             <SettingsPanel
               settings={{ timer: String(timerSec), selectedPreset, falstart: settings.falstart }}
               onChange={handleSettingsChange}
