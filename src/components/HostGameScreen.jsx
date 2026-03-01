@@ -92,6 +92,18 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     });
   }, [currentTopicIdx, topicScores.length]);
 
+  // Auto-expand topic when activeCell moves to a new topic
+  useEffect(() => {
+    if (activeCell) {
+      setExpandedTopics(prev => {
+        if (prev.has(activeCell.ti)) return prev;
+        const next = new Set(prev);
+        next.add(activeCell.ti);
+        return next;
+      });
+    }
+  }, [activeCell?.ti]);
+
   const toggleScorePanel = (ti) => {
     setCollapsedScores(prev => {
       const next = new Set(prev);
