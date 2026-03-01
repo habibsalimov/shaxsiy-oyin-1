@@ -159,8 +159,20 @@ io.on("connection", (socket) => {
     io.to(result.room.code).emit("attachment-update", { key, data: result.room.attachments[key] || null });
   });
 
+  socket.on("lock-cell", () => {
+    const result = gm.lockCell(socket.id);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
   socket.on("reset-cell", (data) => {
     const result = gm.resetCell(socket.id, data);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
+  socket.on("update-settings", (data) => {
+    const result = gm.updateSettings(socket.id, data);
     if (!result) return;
     broadcastState(result.room);
   });

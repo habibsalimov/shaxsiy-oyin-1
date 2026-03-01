@@ -16,6 +16,7 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   const players = gameState?.players || [];
   const myPlayer = players.find(p => p.socketId === myId);
   const nominals = gameState?.settings?.nominals || [10,20,30,40,50];
+  const topicNominals = gameState?.topicNominals || [];
   const topicScores = gameState?.topicScores || [];
   const topicNames = gameState?.topicNames || [];
   const currentTopicIdx = gameState?.currentTopicIdx || 0;
@@ -26,7 +27,7 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   const hostConnected = gameState?.hostConnected !== false;
 
   const currentTopicName = topicNames[currentTopicIdx] || `${currentTopicIdx + 1}-mavzu`;
-  const currentNominal = activeCell ? nominals[activeCell.ni] : null;
+  const currentNominal = activeCell ? (topicNominals[activeCell.ti] || nominals)[activeCell.ni] : null;
   const isGenericName = /^\d+-mavzu$/.test(currentTopicName);
 
   // ─── Falstart support ────────────────────────────────────────────────────
@@ -41,9 +42,13 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
     ? (cellData[`${activeCell.ti}-${activeCell.ni}`]?.history || []).some(h => h.playerId === myId && h.result === "wrong")
     : false;
 
+  // ─── Cell lock ──────────────────────────────────────────────────────────
+  const cellLocked = gameState?.cellLocked || false;
+
   // ─── Derive phase ─────────────────────────────────────────────────────────
   const myBuzzed = buzzOrder.some(b => b.socketId === myId);
   const phase = !activeCell ? "waiting"
+    : cellLocked ? "locked"
     : isFalstartBlocked ? "falstart"
     : alreadyWrong ? "answered-wrong"
     : timerEnd ? "active"
@@ -54,9 +59,9 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   // ─── Compute totals (memoized) ──────────────────────────────────────────
   const grandTotals = useMemo(() =>
     players.map(p => ({
-      ...p, total: topicScores.reduce((sum, ts) => sum + getTotal(ts, p.socketId, nominals), 0),
+      ...p, total: topicScores.reduce((sum, ts, idx) => sum + getTotal(ts, p.socketId, topicNominals[idx] || nominals), 0),
     })).sort((a, b) => b.total - a.total),
-    [players, topicScores, nominals]
+    [players, topicScores, nominals, topicNominals]
   );
 
   const myTotal = grandTotals.find(p => p.socketId === myId)?.total ?? 0;
@@ -181,6 +186,11 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
             <span style={{ fontSize: 13, color: "#e63946" }}>{"\u2717"} Siz bu savolga javob berdingiz</span>
           </div>
         )}
+        {phase === "locked" && (
+          <div style={{ background: "rgba(243,156,18,0.1)", border: "1px solid rgba(243,156,18,0.3)", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: 13, color: "#f39c12" }}>{"\uD83D\uDD12"} Savol bloklangan</span>
+          </div>
+        )}
         {phase === "pre-timer" && (
           <div style={{ textAlign: "center", color: "#f5c800", fontSize: 13, marginBottom: 12 }}>
             {"\u23F3"} Taymer hali boshlanmagan {"\xb7"} Bosishingiz mumkin
@@ -202,19 +212,19 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
               disabled={phase !== "active" && phase !== "pre-timer"}
               style={{
                 width: 170, height: 170, borderRadius: "50%",
-                border: `5px solid ${(phase === "falstart" || phase === "answered-wrong") ? "#e63946" : phase === "buzzed" && iAmFirst ? "#2ecc71" : myBuzzed ? "#445566" : "#f5c800"}`,
-                background: (phase === "falstart" || phase === "answered-wrong") ? "rgba(230,57,70,0.15)" : phase === "buzzed" && iAmFirst ? "#2ecc71" : pressing ? "#f5c800" : "#1e2940",
-                color: (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : (pressing || (phase === "buzzed" && iAmFirst)) ? "#0a0e1a" : myBuzzed ? "#445566" : "#f5c800",
+                border: `5px solid ${phase === "locked" ? "#f39c12" : (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : phase === "buzzed" && iAmFirst ? "#2ecc71" : myBuzzed ? "#445566" : "#f5c800"}`,
+                background: phase === "locked" ? "rgba(243,156,18,0.1)" : (phase === "falstart" || phase === "answered-wrong") ? "rgba(230,57,70,0.15)" : phase === "buzzed" && iAmFirst ? "#2ecc71" : pressing ? "#f5c800" : "#1e2940",
+                color: phase === "locked" ? "#f39c12" : (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : (pressing || (phase === "buzzed" && iAmFirst)) ? "#0a0e1a" : myBuzzed ? "#445566" : "#f5c800",
                 fontFamily: "'Anton', sans-serif", fontSize: 30, letterSpacing: "0.08em",
                 cursor: (phase === "active" || phase === "pre-timer") && !myBuzzed ? "pointer" : "default",
                 transition: "all 0.1s", transform: pressing ? "scale(0.92)" : "scale(1)",
                 boxShadow: phase === "active" && !myBuzzed ? "0 0 40px rgba(245,200,0,0.15)" : phase === "pre-timer" ? "0 0 30px rgba(245,200,0,0.08)" : phase === "buzzed" && iAmFirst ? "0 0 50px rgba(46,204,113,0.5)" : "none",
                 userSelect: "none",
               }}>
-              {phase === "falstart" ? "\u26A1" : phase === "answered-wrong" ? "\u2717" : phase === "buzzed" && iAmFirst ? "\uD83C\uDFA4" : myBuzzed ? "\u2713" : "JAVOB"}
+              {phase === "locked" ? "\uD83D\uDD12" : phase === "falstart" ? "\u26A1" : phase === "answered-wrong" ? "\u2717" : phase === "buzzed" && iAmFirst ? "\uD83C\uDFA4" : myBuzzed ? "\u2713" : "JAVOB"}
             </button>
-            <div style={{ marginTop: 10, fontSize: 11, color: (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : "#8899aa" }}>
-              {phase === "falstart" ? "Falstart! Bu savolda javob bera olmaysiz" : phase === "answered-wrong" ? "Siz bu savolga javob berdingiz" : phase === "active" ? "Bosing yoki SPACE" : phase === "pre-timer" ? "Taymer kutilmoqda \xb7 Bosing yoki SPACE" : myBuzzed ? "Siz bosdingiz!" : phase === "answering" ? "Javob kutilmoqda..." : "Kutilmoqda..."}
+            <div style={{ marginTop: 10, fontSize: 11, color: phase === "locked" ? "#f39c12" : (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : "#8899aa" }}>
+              {phase === "locked" ? "Savol bloklangan" : phase === "falstart" ? "Falstart! Bu savolda javob bera olmaysiz" : phase === "answered-wrong" ? "Siz bu savolga javob berdingiz" : phase === "active" ? "Bosing yoki SPACE" : phase === "pre-timer" ? "Taymer kutilmoqda \xb7 Bosing yoki SPACE" : myBuzzed ? "Siz bosdingiz!" : phase === "answering" ? "Javob kutilmoqda..." : "Kutilmoqda..."}
             </div>
           </div>
         </div>
@@ -268,7 +278,7 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
                 <span style={{ fontSize: 10, color: "#445566" }}>batafsil</span>
               </div>
               {expandedDetail.has(ti) && (
-                <ScoreBoard scores={tScores} players={players} nominals={nominals} currentNominal={null} isHost={false} allTopicScores={topicScores} />
+                <ScoreBoard scores={tScores} players={players} nominals={topicNominals[ti] || nominals} currentNominal={null} isHost={false} allTopicScores={topicScores} topicNominals={topicNominals} />
               )}
             </div>
           ))}

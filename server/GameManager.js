@@ -38,6 +38,7 @@ export class GameManager {
       blockedPlayers: new Set(),
       phase: "lobby",
       topicScores: [],
+      topicNominals: [],
       currentTopicIdx: 0,
       activeCell: null,
       cellData: {},
@@ -46,6 +47,7 @@ export class GameManager {
       timerTimeout: null,
       buzzOrder: [],
       falstartBlocked: new Set(),
+      cellLocked: false,
     };
     this.rooms.set(code, room);
     this.socketToRoom.set(socketId, code);
@@ -98,13 +100,34 @@ export class GameManager {
 
   _ensureTopicScores(room, ti) {
     while (room.topicScores.length <= ti) {
+      const idx = room.topicScores.length;
+      // Lock nominals for this topic (use current settings at time of creation)
+      if (!room.topicNominals[idx]) {
+        room.topicNominals[idx] = [...room.settings.nominals];
+      }
+      const noms = room.topicNominals[idx];
       const s = {};
       room.players.forEach(p => {
         s[p.socketId] = {};
-        room.settings.nominals.forEach(n => { s[p.socketId][n] = null; });
+        noms.forEach(n => { s[p.socketId][n] = null; });
       });
       room.topicScores.push(s);
     }
+  }
+
+  _getTopicNominals(room, ti) {
+    return room.topicNominals[ti] || room.settings.nominals;
+  }
+
+  updateSettings(socketId, { timer, nominals, falstart }) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+
+    if (timer !== undefined) room.settings.timer = parseInt(timer) || 7;
+    if (falstart !== undefined) room.settings.falstart = !!falstart;
+    if (nominals && Array.isArray(nominals)) room.settings.nominals = nominals;
+
+    return { room };
   }
 
   correctScore(socketId, { playerId, ti, ni }) {
@@ -113,10 +136,11 @@ export class GameManager {
     if (room.phase !== "playing") return null;
 
     this._ensureTopicScores(room, ti);
-    const nom = room.settings.nominals[ni];
+    const topicNoms = this._getTopicNominals(room, ti);
+    const nom = topicNoms[ni];
     if (!room.topicScores[ti][playerId]) {
       room.topicScores[ti][playerId] = {};
-      room.settings.nominals.forEach(n => { room.topicScores[ti][playerId][n] = null; });
+      topicNoms.forEach(n => { room.topicScores[ti][playerId][n] = null; });
     }
 
     const current = room.topicScores[ti][playerId][nom];
@@ -137,10 +161,27 @@ export class GameManager {
     return { room };
   }
 
+  lockCell(socketId) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+    if (!room.activeCell) return null;
+
+    room.cellLocked = !room.cellLocked;
+    if (room.cellLocked) {
+      // Stop timer and clear buzz state when locking
+      clearTimeout(room.timerTimeout);
+      room.timerEnd = null;
+      room.buzzOrder = [];
+      room.falstartBlocked = new Set();
+    }
+    return { room };
+  }
+
   startTimer(socketId, { ti, ni }) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;
     if (room.phase !== "playing") return null;
+    if (room.cellLocked) return null;
 
     // Clear "no_answer" from history so cell can be retried
     const key = `${ti}-${ni}`;
@@ -149,6 +190,7 @@ export class GameManager {
     }
 
     room.activeCell = { ti, ni };
+    room.cellLocked = false;
     room.buzzOrder = [];
     this._ensureTopicScores(room, ti);
     room.currentTopicIdx = ti;
@@ -175,6 +217,7 @@ export class GameManager {
   buzz(socketId) {
     const room = this.getRoomForSocket(socketId);
     if (!room) return null;
+    if (room.cellLocked) return null;
     if (room.blockedPlayers.has(socketId)) return null;
     if (room.falstartBlocked.has(socketId)) return null;
     if (room.buzzOrder.some(b => b.socketId === socketId)) return null;
@@ -220,12 +263,13 @@ export class GameManager {
     if (!room.activeCell) return null;
 
     const { ti, ni } = room.activeCell;
-    const nom = room.settings.nominals[ni];
+    const topicNoms = this._getTopicNominals(room, ti);
+    const nom = topicNoms[ni];
 
     this._ensureTopicScores(room, ti);
     if (!room.topicScores[ti][playerId]) {
       room.topicScores[ti][playerId] = {};
-      room.settings.nominals.forEach(n => { room.topicScores[ti][playerId][n] = null; });
+      topicNoms.forEach(n => { room.topicScores[ti][playerId][n] = null; });
     }
     room.topicScores[ti][playerId][nom] = result;
 
@@ -245,7 +289,7 @@ export class GameManager {
       room.timerEnd = null;
       // Auto-advance
       const nextNi = ni + 1;
-      if (nextNi < room.settings.nominals.length) {
+      if (nextNi < topicNoms.length) {
         room.activeCell = { ti, ni: nextNi };
       } else if (ti + 1 < room.topicNames.length) {
         room.currentTopicIdx = ti + 1;
@@ -274,8 +318,9 @@ export class GameManager {
     room.buzzOrder = [];
     room.falstartBlocked = new Set();
 
+    const topicNoms = this._getTopicNominals(room, ti);
     const nextNi = ni + 1;
-    if (nextNi < room.settings.nominals.length) {
+    if (nextNi < topicNoms.length) {
       room.activeCell = { ti, ni: nextNi };
     } else if (ti + 1 < room.topicNames.length) {
       room.currentTopicIdx = ti + 1;
@@ -327,7 +372,7 @@ export class GameManager {
     room.cellData[key] = { history: [] };
 
     // Null out scores for all players at this nominal
-    const nom = room.settings.nominals[ni];
+    const nom = this._getTopicNominals(room, ti)[ni];
     if (room.topicScores[ti]) {
       for (const playerId of Object.keys(room.topicScores[ti])) {
         if (room.topicScores[ti][playerId] && room.topicScores[ti][playerId][nom] !== undefined) {
@@ -396,6 +441,7 @@ export class GameManager {
       topicNames: room.topicNames,
       players: room.players.map(p => ({ socketId: p.socketId, name: p.name })),
       nominals: room.settings.nominals,
+      topicNominals: room.topicNominals,
       date: new Date().toISOString(),
     };
 
@@ -437,6 +483,7 @@ export class GameManager {
       hostConnected: room.hostConnected !== false,
       settings: { ...room.settings },
       topicNames: [...room.topicNames],
+      topicNominals: [...room.topicNominals],
       players: room.players.map(p => ({
         socketId: p.socketId, name: p.name,
         connected: p.connected, latency: p.latency
@@ -451,6 +498,7 @@ export class GameManager {
       timerEnd: room.timerEnd,
       buzzOrder: room.buzzOrder.map(b => ({ socketId: b.socketId, name: b.name, effectiveTime: b.effectiveTime })),
       falstartBlocked: [...room.falstartBlocked],
+      cellLocked: room.cellLocked || false,
     };
   }
 }

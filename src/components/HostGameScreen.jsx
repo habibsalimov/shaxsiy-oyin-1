@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { T } from '../utils/constants.js';
+import { T, NOMINAL_PRESETS } from '../utils/constants.js';
 import { useWindowWidth } from '../hooks/useWindowWidth.js';
 import { emitEvent } from '../socket.js';
 import { Btn, Badge, Card, Label, Input, TimerDisplay } from './ui/index.js';
@@ -19,8 +19,6 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   const [confirmReset, setConfirmReset] = useState(null);
   const [playersOpen, setPlayersOpen]   = useState(false);
   // Attachments now synced via server (gameState.attachments)
-  // Local cell lock state (host-only, not synced to server)
-  const [localLocks, setLocalLocks] = useState({});
   const [lightboxSrc, setLightboxSrc] = useState(null);
   // Expanded history panel for old (done) cells
   const [expandedCell, setExpandedCell] = useState(null);
@@ -41,6 +39,8 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   const activeNominals = gameState?.settings?.nominals || [10,20,30,40,50];
   const timerSec = gameState?.settings?.timer || 7;
   const settings = gameState?.settings || { timer: 7, nominals: [10,20,30,40,50], falstart: false };
+  const topicNominals = gameState?.topicNominals || [];
+  const cellLocked = gameState?.cellLocked || false;
 
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 640;
@@ -48,7 +48,8 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   // ─── Computed values ─────────────────────────────────────────────────────
   const computeNextAllowed = (cd) => {
     for (let ti = 0; ti < topicNames.length; ti++) {
-      for (let ni = 0; ni < activeNominals.length; ni++) {
+      const noms = topicNominals[ti] || activeNominals;
+      for (let ni = 0; ni < noms.length; ni++) {
         const key = `${ti}-${ni}`;
         const cell = cd[key] || { history: [] };
         const done = cell.history.some(h => h.result === "correct" || h.result === "no_answer" || h.result === "skipped");
@@ -157,7 +158,6 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   // ─── Attachment handling (synced via server) ─────────────────────────────
   const serverAttachments = attachmentsProp || {};
   const getAttachment = (ti, ni) => serverAttachments[cellKey(ti, ni)] || null;
-  const getLocalLock = (ti, ni) => localLocks[cellKey(ti, ni)] || false;
 
   const handleAttachText = (ti, ni) => {
     if (!attachText.trim()) return;
@@ -181,12 +181,23 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     emitEvent("remove-attachment", { ti, ni, type });
   };
 
-  const toggleLocalLock = (ti, ni) => {
-    setLocalLocks(prev => ({ ...prev, [cellKey(ti, ni)]: !prev[cellKey(ti, ni)] }));
-  };
 
   // ─── Derive settings summary for display ─────────────────────────────────
   const settingsSummary = `— ${timerSec}s \xb7 ${activeNominals.join("/")} \xb7 falstart: ${settings.falstart ? "yoniq" : `o${T}chiq`}`;
+
+  // Derive selectedPreset from current nominals for SettingsPanel
+  const selectedPreset = Math.max(0, NOMINAL_PRESETS.findIndex(p =>
+    p.length === activeNominals.length && p.every((v, i) => v === activeNominals[i])
+  ));
+
+  const handleSettingsChange = (newSettings) => {
+    const nominals = NOMINAL_PRESETS[newSettings.selectedPreset] || NOMINAL_PRESETS[0];
+    emitEvent("update-settings", {
+      timer: parseInt(newSettings.timer) || 7,
+      nominals,
+      falstart: newSettings.falstart,
+    });
+  };
 
   // ─── Loading state ───────────────────────────────────────────────────────
   if (!gameState) {
@@ -239,12 +250,10 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
       {settingsOpen && (
         <div style={{ background: "#111827", borderBottom: "1px solid #1e2940", padding: "16px 24px", animation: "fadeIn 0.15s ease both" }}>
           <div style={{ maxWidth: 520 }}>
-            <div style={{ fontSize: 11, color: "#8899aa", marginBottom: 8 }}>
-              {settingsSummary}
-            </div>
-            <div style={{ fontSize: 10, color: "#445566" }}>
-              Sozlamalar server tomonidan boshqariladi. Ularni faqat o{T}yin yaratish vaqtida o{T}zgartirish mumkin.
-            </div>
+            <SettingsPanel
+              settings={{ timer: String(timerSec), selectedPreset, falstart: settings.falstart }}
+              onChange={handleSettingsChange}
+            />
           </div>
         </div>
       )}
@@ -382,10 +391,10 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                         {ti + 1}. {topicName}
                       </span>
                     )}
-                    <span style={{ fontSize: 11, color: "#445566", flexShrink: 0 }}>{activeNominals.length} savol</span>
+                    <span style={{ fontSize: 11, color: "#445566", flexShrink: 0 }}>{(topicNominals[ti] || activeNominals).length} savol</span>
                   </div>
 
-                  {expandedTopics.has(ti) && activeNominals.map((nom, ni) => {
+                  {expandedTopics.has(ti) && (topicNominals[ti] || activeNominals).map((nom, ni) => {
                     const cd = getCellData(ti, ni);
                     const isActive = activeCell && activeCell.ti === ti && activeCell.ni === ni;
                     const hasCorrect  = cd.history.some(h => h.result === "correct");
@@ -393,7 +402,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                     const isDone = hasCorrect || hasNoAnswer;
                     const lastResult = cd.history[cd.history.length - 1];
                     const attachment = getAttachment(ti, ni);
-                    const isLocked = getLocalLock(ti, ni);
+                    const isLocked = isActive && cellLocked;
 
                     return (
                       <div key={ni}>
@@ -493,7 +502,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                   <label style={{ background: "#1e2940", border: "1px solid #2a3a52", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "#8899aa", fontSize: 14 }}>
                                     {"\uD83D\uDDBC\uFE0F"}<input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleAttachImage(ti, ni, e)} />
                                   </label>
-                                  <button onClick={() => toggleLocalLock(ti, ni)} style={{
+                                  <button onClick={() => emitEvent("lock-cell")} style={{
                                     background: isLocked ? "rgba(243,156,18,0.15)" : "#1e2940",
                                     border: `1px solid ${isLocked ? "#f39c12" : "#2a3a52"}`,
                                     borderRadius: 4, padding: "6px 12px", cursor: "pointer",
@@ -575,7 +584,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
               <div style={{ marginBottom: 12, padding: "8px 14px", background: "rgba(245,200,0,0.06)", borderRadius: 6, border: "1px solid rgba(245,200,0,0.15)", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 11, color: "#8899aa" }}>Faol savol:</span>
                 <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 15, color: "#f5c800" }}>
-                  {activeNominals[activeCell.ni]} — {topicNames[activeCell.ti]}
+                  {(topicNominals[activeCell.ti] || activeNominals)[activeCell.ni]} — {topicNames[activeCell.ti]}
                 </span>
               </div>
             )}
@@ -584,7 +593,8 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
               const scorePanelTi = topicScores.length - 1 - revIdx;
               const isCurrentTopic = scorePanelTi === currentTopicIdx;
               const isCollapsed = collapsedScores.has(scorePanelTi);
-              const activeNomForPanel = isCurrentTopic && activeCell ? activeNominals[activeCell.ni] : null;
+              const panelNominals = topicNominals[scorePanelTi] || activeNominals;
+              const activeNomForPanel = isCurrentTopic && activeCell ? panelNominals[activeCell.ni] : null;
 
               return (
                 <div key={scorePanelTi} style={{ marginBottom: 12, border: `1px solid ${isCurrentTopic ? "rgba(245,200,0,0.3)" : "#1e2940"}`, borderRadius: 6, overflow: "hidden" }}>
@@ -598,11 +608,12 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                   </div>
                   {!isCollapsed && (
                     <ScoreBoard
-                      scores={tScores} players={players} nominals={activeNominals}
+                      scores={tScores} players={players} nominals={panelNominals}
                       currentNominal={activeNomForPanel} isHost={true} allTopicScores={topicScores}
                       blockedPlayers={blockedPlayers}
+                      topicNominals={topicNominals}
                       onCellClick={(sid, n) => {
-                        const ni = activeNominals.indexOf(n);
+                        const ni = panelNominals.indexOf(n);
                         if (ni === -1) return;
                         emitEvent("correct-score", { playerId: sid, ti: scorePanelTi, ni });
                       }}
