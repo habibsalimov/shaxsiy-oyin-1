@@ -455,7 +455,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                           {attachment?.image && <span style={{ fontSize: 12 }}>{"\uD83D\uDDBC\uFE0F"}</span>}
                           {attachment?.text && <span style={{ fontSize: 12 }}>{"\uD83D\uDCDD"}</span>}
                           {isLocked && <span style={{ fontSize: 12 }}>{"\uD83D\uDD12"}</span>}
-                          {isDone && (
+                          {cd.history.length > 0 && (
                             <button onClick={e => { e.stopPropagation(); setExpandedCell(expandedCell === cellKey(ti, ni) ? null : cellKey(ti, ni)); }} style={{
                               background: expandedCell === cellKey(ti, ni) ? "rgba(245,200,0,0.15)" : "#1e2940",
                               border: expandedCell === cellKey(ti, ni) ? "1px solid #f5c800" : "none",
