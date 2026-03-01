@@ -57,7 +57,7 @@ export default function App() {
     if (hash.startsWith("#game/")) {
       try {
         const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
-        if (s) return s.isHost ? "hostGame" : "playerGame";
+        if (s?.roomCode) return s.isHost ? "hostGame" : "playerGame";
       } catch {}
     }
     return "landing";
@@ -117,15 +117,13 @@ export default function App() {
         if (prev === "landing") {
           const session = JSON.parse(sessionStorage.getItem("game-session") || "null");
           if (session) {
+            window.location.hash = `game/${state.code}`;
             if (session.isHost) {
               setRoomCode(state.code);
               setIsHost(true);
-              window.location.hash = `game/${state.code}`;
               return "hostGame";
-            } else {
-              window.location.hash = `game/${state.code}`;
-              return "playerGame";
             }
+            return "playerGame";
           }
         }
         return prev;
