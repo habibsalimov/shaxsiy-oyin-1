@@ -336,6 +336,23 @@ export class GameManager {
       }
     } else {
       room.buzzOrder = room.buzzOrder.filter(b => b.socketId !== playerId);
+      // If no one left in buzzOrder, auto-advance to next question
+      if (room.buzzOrder.length === 0) {
+        room.falstartBlocked = new Set();
+        clearTimeout(room.timerTimeout);
+        room.timerEnd = null;
+        room.timerStarted = false;
+        const next = this._findNextOpenCell(room, ti, ni);
+        if (next) {
+          room.activeCell = next;
+          if (next.ti !== ti) {
+            room.currentTopicIdx = next.ti;
+            this._ensureTopicScores(room, next.ti);
+          }
+        } else {
+          room.activeCell = null;
+        }
+      }
     }
 
     return { room };
