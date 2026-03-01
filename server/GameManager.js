@@ -228,6 +228,18 @@ export class GameManager {
     }
     room.buzzOrder = [];
     room.falstartBlocked = new Set();
+
+    // Auto-advance to next open cell
+    const next = this._findNextOpenCell(room, ti, ni);
+    if (next) {
+      room.activeCell = next;
+      if (next.ti !== ti) {
+        room.currentTopicIdx = next.ti;
+        this._ensureTopicScores(room, next.ti);
+      }
+    } else {
+      room.activeCell = null;
+    }
   }
 
   buzz(socketId) {
