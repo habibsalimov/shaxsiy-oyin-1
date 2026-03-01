@@ -29,7 +29,7 @@ if (!window.storage) {
   }
 }
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { T } from './utils/constants.js';
 import { getSocket, onEvent, emitEvent } from './socket.js';
 import { LandingScreen } from './components/LandingScreen.jsx';
@@ -53,16 +53,34 @@ function genId() {
 export default function App() {
   const [screen, setScreen]         = useState(() => {
     const hash = window.location.hash;
-    return hash.startsWith("#results/") ? "results" : "landing";
+    if (hash.startsWith("#results/")) return "results";
+    if (hash.startsWith("#game/")) {
+      try {
+        const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
+        if (s) return s.isHost ? "hostGame" : "playerGame";
+      } catch {}
+    }
+    return "landing";
   });
   const [gameState, setGameState]   = useState(null);
   const [attachments, setAttachments] = useState({});
-  const [roomCode, setRoomCode]     = useState(null);
-  const [isHost, setIsHost]         = useState(false);
+  const [roomCode, setRoomCode]     = useState(() => {
+    try {
+      const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
+      return s?.roomCode || null;
+    } catch { return null; }
+  });
+  const [isHost, setIsHost]         = useState(() => {
+    try {
+      const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
+      return s?.isHost || false;
+    } catch { return false; }
+  });
   const [connected, setConnected]   = useState(false);
   const [gameResult, setGameResult] = useState(null);
   const [archiveId, setArchiveId]   = useState(null);
   const [errorMsg, setErrorMsg]     = useState(null);
+  const gameStateRef = useRef(null);
 
   useEffect(() => {
     const socket = getSocket();
@@ -73,10 +91,15 @@ export default function App() {
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
 
+    if (window.location.hash.startsWith("#game/") && !sessionStorage.getItem("game-session")) {
+      window.location.hash = "";
+    }
+
     const unsub1 = onEvent("room-created", ({ code }) => {
       setRoomCode(code);
       setIsHost(true);
       setScreen("hostGame");
+      window.location.hash = `game/${code}`;
       // Grab host name from pending session if available
       let hostName = "Host";
       try {
@@ -88,9 +111,8 @@ export default function App() {
     });
 
     const unsub2 = onEvent("game-state", (state) => {
+      gameStateRef.current = state;
       setGameState(state);
-      // If we're on landing and receive game-state, we were reconnected — restore screen
-      // Use a function setter to get current screen value
       setScreen(prev => {
         if (prev === "landing") {
           const session = JSON.parse(sessionStorage.getItem("game-session") || "null");
@@ -98,8 +120,10 @@ export default function App() {
             if (session.isHost) {
               setRoomCode(state.code);
               setIsHost(true);
+              window.location.hash = `game/${state.code}`;
               return "hostGame";
             } else {
+              window.location.hash = `game/${state.code}`;
               return "playerGame";
             }
           }
@@ -114,6 +138,7 @@ export default function App() {
       setArchiveId(id);
       setGameResult(finalResult);
       setScreen("results");
+      gameStateRef.current = null;
       window.location.hash = `results/${id}`;
       sessionStorage.removeItem("game-session");
     });
@@ -134,6 +159,16 @@ export default function App() {
       console.error("Server error:", message);
       setErrorMsg(message);
       setTimeout(() => setErrorMsg(null), 4000);
+      setScreen(prev => {
+        if ((prev === "hostGame" || prev === "playerGame") && !gameStateRef.current) {
+          window.location.hash = "";
+          sessionStorage.removeItem("game-session");
+          setRoomCode(null);
+          setIsHost(false);
+          return "landing";
+        }
+        return prev;
+      });
     });
 
     const unsub5 = onEvent("player-removed", ({ playerId }) => {
@@ -142,6 +177,8 @@ export default function App() {
         setGameState(null);
         setRoomCode(null);
         setIsHost(false);
+        gameStateRef.current = null;
+        window.location.hash = "";
         sessionStorage.removeItem("game-session");
         setErrorMsg("Siz o'yindan chiqarildingiz");
         setTimeout(() => setErrorMsg(null), 4000);
@@ -207,7 +244,13 @@ export default function App() {
           <LandingScreen
             connected={connected}
             onHostCreated={() => {}}
-            onPlayerJoined={() => setScreen("playerGame")}
+            onPlayerJoined={() => {
+              setScreen("playerGame");
+              try {
+                const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
+                if (s?.roomCode) window.location.hash = `game/${s.roomCode}`;
+              } catch {}
+            }}
             errorMsg={errorMsg}
           />
         )}
@@ -227,6 +270,7 @@ export default function App() {
             gameResult={gameResult}
             archiveId={archiveId}
             onRestart={() => {
+              gameStateRef.current = null;
               setScreen("landing");
               setGameState(null);
               setRoomCode(null);
