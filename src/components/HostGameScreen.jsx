@@ -467,7 +467,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
 
                         {(isActive || expandedCell === cellKey(ti, ni)) && (
                           <div style={{ margin: "0 8px 8px", borderRadius: 6, background: "#111827", border: "1px solid #2a3a52", padding: "12px 14px", animation: "fadeIn 0.15s ease both" }}>
-                            {isDone ? (
+                            {(isDone || expandedCell === cellKey(ti, ni)) ? (
                               <>
                                 <div style={{ marginBottom: 12 }}>
                                   <div style={{ fontSize: 10, color: "#8899aa", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>Savol tarixi</div>
