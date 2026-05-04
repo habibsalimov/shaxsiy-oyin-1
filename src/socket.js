@@ -27,6 +27,7 @@ export function getSocket() {
             code: session.roomCode,
             playerName: session.playerName || "Host",
             isHost: !!session.isHost,
+            hostToken: session.hostToken || null,
           });
         }
       } catch (e) {

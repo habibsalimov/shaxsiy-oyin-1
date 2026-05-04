@@ -17,6 +17,8 @@ const io = new Server(httpServer, {
 });
 
 const gm = new GameManager();
+const GENERIC_JOIN_ERROR = "Xonaga qo'shilib bo'lmadi";
+const JOIN_BLOCKED_ERROR = "Juda ko'p urinish bo'ldi. Birozdan keyin qayta urinib ko'ring.";
 
 // Serve static files in production
 const distPath = path.join(__dirname, "..", "dist");
@@ -60,6 +62,10 @@ setInterval(() => {
   });
 }, 5000);
 
+setInterval(() => {
+  gm.cleanupInactiveRooms();
+}, 10 * 60 * 1000);
+
 io.on("connection", (socket) => {
   console.log(`[connect] ${socket.id}`);
 
@@ -71,22 +77,33 @@ io.on("connection", (socket) => {
   });
 
   socket.on("create-room", (data) => {
-    const { code, room } = gm.createRoom(socket.id, data);
+    const { code, room, hostToken } = gm.createRoom(socket.id, data);
     socket.join(code);
-    socket.emit("room-created", { code });
+    socket.emit("room-created", { code, hostToken });
     broadcastState(room);
   });
 
   socket.on("join-room", (data) => {
+    const joinGuard = {
+      code: data?.code,
+      address: socket.handshake.address,
+      socketId: socket.id,
+    };
+    if (gm.isJoinBlocked(joinGuard)) {
+      socket.emit("error", { message: JOIN_BLOCKED_ERROR });
+      return;
+    }
+
     const result = gm.joinRoom(socket.id, data);
     if (result.error) {
-      socket.emit("error", { message: result.error });
+      gm.recordJoinFailure(joinGuard);
+      socket.emit("error", { message: GENERIC_JOIN_ERROR });
       return;
     }
     socket.join(result.room.code);
     // If host reconnected, re-emit room-created so client restores host screen
     if (result.isHost) {
-      socket.emit("room-created", { code: result.room.code });
+      socket.emit("room-created", { code: result.room.code, hostToken: result.room.hostToken });
     }
     // Send all attachments to joining client (one-time, not in game-state)
     if (Object.keys(result.room.attachments).length > 0) {
@@ -173,6 +190,10 @@ io.on("connection", (socket) => {
   socket.on("set-attachment", (data) => {
     const result = gm.setAttachment(socket.id, data);
     if (!result) return;
+    if (result.error) {
+      socket.emit("error", { message: result.error });
+      return;
+    }
     const key = `${data.ti}-${data.ni}`;
     io.to(result.room.code).emit("attachment-update", { key, data: result.room.attachments[key] });
   });

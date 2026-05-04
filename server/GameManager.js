@@ -1,6 +1,13 @@
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const SOUND_OPTIONS = new Set(["off", "button", "ding", "game-menu", "happy", "join", "notification", "paper-fold", "pop", "error", "beep", "gudok"]);
 const LATE_BUZZ_WINDOW_MS = 100;
+const MAX_ATTACHMENT_TEXT_LENGTH = 2000;
+const MAX_ATTACHMENT_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_ROOM_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const JOIN_ATTEMPT_WINDOW_MS = 60 * 1000;
+const JOIN_ATTEMPT_BLOCK_MS = 60 * 1000;
+const JOIN_ATTEMPT_LIMIT = 10;
+const ROOM_INACTIVE_TTL_MS = 3 * 60 * 60 * 1000;
 
 function normalizeSound(value, fallback) {
   return SOUND_OPTIONS.has(value) ? value : fallback;
@@ -30,10 +37,81 @@ function generatePlayerId() {
   return Math.random().toString(36).slice(2, 10).toUpperCase();
 }
 
+function estimateDataUrlBytes(value) {
+  if (typeof value !== "string") return 0;
+  const base64 = value.includes(",") ? value.split(",").pop() : value;
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+function getAttachmentSize(attachment = {}) {
+  const textBytes = attachment.text ? Buffer.byteLength(String(attachment.text), "utf8") : 0;
+  const imageBytes = attachment.image ? estimateDataUrlBytes(attachment.image) : 0;
+  return textBytes + imageBytes;
+}
+
+function getRoomAttachmentSize(room) {
+  return Object.values(room.attachments || {}).reduce((sum, attachment) => sum + getAttachmentSize(attachment), 0);
+}
+
 export class GameManager {
   constructor() {
     this.rooms = new Map();
     this.socketToRoom = new Map();
+    this.joinAttempts = new Map();
+  }
+
+  _touchRoom(room, now = Date.now()) {
+    if (room) room.lastActivityAt = now;
+  }
+
+  _joinAttemptKeys({ code, address, socketId }) {
+    const keys = [];
+    const identity = address || socketId;
+    if (identity) keys.push(`identity:${identity}`);
+    if (code) keys.push(`code:${String(code).trim().toUpperCase()}`);
+    return keys;
+  }
+
+  _getJoinBucket(key, now) {
+    const bucket = this.joinAttempts.get(key);
+    if (!bucket || now - bucket.windowStart > JOIN_ATTEMPT_WINDOW_MS) {
+      const fresh = { count: 0, windowStart: now, blockedUntil: 0 };
+      this.joinAttempts.set(key, fresh);
+      return fresh;
+    }
+    return bucket;
+  }
+
+  isJoinBlocked({ code, address, socketId, now = Date.now() }) {
+    return this._joinAttemptKeys({ code, address, socketId }).some((key) => {
+      const bucket = this._getJoinBucket(key, now);
+      return bucket.blockedUntil > now;
+    });
+  }
+
+  recordJoinFailure({ code, address, socketId, now = Date.now() }) {
+    this._joinAttemptKeys({ code, address, socketId }).forEach((key) => {
+      const bucket = this._getJoinBucket(key, now);
+      bucket.count += 1;
+      if (bucket.count > JOIN_ATTEMPT_LIMIT) {
+        bucket.blockedUntil = now + JOIN_ATTEMPT_BLOCK_MS;
+      }
+    });
+  }
+
+  cleanupInactiveRooms(now = Date.now(), ttl = ROOM_INACTIVE_TTL_MS) {
+    const removed = [];
+    for (const [code, room] of this.rooms.entries()) {
+      const lastActivityAt = room.lastActivityAt || now;
+      if (now - lastActivityAt <= ttl) continue;
+
+      clearTimeout(room.timerTimeout);
+      this.socketToRoom.delete(room.hostSocketId);
+      room.players.forEach((player) => this.socketToRoom.delete(player.socketId));
+      this.rooms.delete(code);
+      removed.push(code);
+    }
+    return removed;
   }
 
   createRoom(socketId, { hostName, rounds, topics, nominals, timer, falstart, wrongAnswerLimit, queuedAnswers, latencyCompensation, timerStartSound, buzzerSound, timerEndSound, falstartSound }) {
@@ -45,6 +123,7 @@ export class GameManager {
     const room = {
       code,
       hostSocketId: socketId,
+      hostToken: generatePlayerId(),
       hostName,
       hostConnected: true,
       settings: {
@@ -78,23 +157,25 @@ export class GameManager {
       falstartBlocked: new Set(),
       timerStarted: false,
       cellLocked: false,
+      lastActivityAt: Date.now(),
     };
     this.rooms.set(code, room);
     this.socketToRoom.set(socketId, code);
-    return { code, room };
+    return { code, room, hostToken: room.hostToken };
   }
 
-  joinRoom(socketId, { code, playerName, isHost }) {
+  joinRoom(socketId, { code, playerName, isHost, hostToken }) {
     const room = this.rooms.get(code);
     if (!room) return { error: "Xona topilmadi" };
 
     // Host reconnection: update hostSocketId
-    if (isHost && room.hostName === playerName) {
+    if (isHost && (room.hostToken === hostToken || room.hostName === playerName)) {
       const oldHostId = room.hostSocketId;
       this.socketToRoom.delete(oldHostId);
       room.hostSocketId = socketId;
       room.hostConnected = true;
       this.socketToRoom.set(socketId, code);
+      this._touchRoom(room);
       return { room, reconnected: true, isHost: true };
     }
 
@@ -109,6 +190,7 @@ export class GameManager {
       existing.connected = true;
       this.socketToRoom.delete(oldId);
       this.socketToRoom.set(socketId, code);
+      this._touchRoom(room);
       return { room, reconnected: true };
     }
 
@@ -116,12 +198,15 @@ export class GameManager {
     room.players.push(player);
     this.ensurePlayerScoreEntries(room, player);
     this.socketToRoom.set(socketId, code);
+    this._touchRoom(room);
     return { room };
   }
 
   getRoomForSocket(socketId) {
     const code = this.socketToRoom.get(socketId);
-    return code ? this.rooms.get(code) : null;
+    const room = code ? this.rooms.get(code) : null;
+    if (room) this._touchRoom(room);
+    return room;
   }
 
   isHost(socketId) {
@@ -206,6 +291,7 @@ export class GameManager {
     if (falstartSound !== undefined) room.settings.falstartSound = normalizeSound(falstartSound, room.settings.falstartSound);
     if (nominals && Array.isArray(nominals)) room.settings.nominals = nominals;
 
+    this._touchRoom(room);
     return { room };
   }
 
@@ -217,6 +303,7 @@ export class GameManager {
     if (!nextName) return { room };
 
     room.hostName = nextName;
+    this._touchRoom(room);
     return { room };
   }
 
@@ -567,8 +654,23 @@ export class GameManager {
     const key = `${ti}-${ni}`;
     const existing = room.attachments[key] || {};
     if (type === "text") {
-      existing.text = content;
+      const text = String(content || "").trim();
+      if (text.length > MAX_ATTACHMENT_TEXT_LENGTH) {
+        return { room, error: `Matn ${MAX_ATTACHMENT_TEXT_LENGTH} belgidan oshmasin` };
+      }
+      existing.text = text;
     } else if (type === "image") {
+      if (typeof content !== "string" || !content.startsWith("data:image/")) {
+        return { room, error: "Faqat rasm faylini yuklash mumkin" };
+      }
+      const imageBytes = estimateDataUrlBytes(content);
+      if (imageBytes > MAX_ATTACHMENT_IMAGE_BYTES) {
+        return { room, error: "Rasm hajmi 2MB dan oshmasin" };
+      }
+      const currentSize = getRoomAttachmentSize(room) - getAttachmentSize(existing);
+      if (currentSize + getAttachmentSize({ ...existing, image: content }) > MAX_ROOM_ATTACHMENT_BYTES) {
+        return { room, error: "Xona bo'yicha ilovalar hajmi 5MB dan oshmasin" };
+      }
       existing.image = content;
     }
     room.attachments[key] = existing;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NOMINAL_PRESETS, T } from '../utils/constants.js';
 import { Label } from './ui/index.js';
 import { Input } from './ui/index.js';
@@ -27,7 +27,7 @@ const TIMER_START_SOUND_OPTIONS = [
   { value: "off", label: `O${T}chirilgan` },
 ];
 
-export function SettingsPanel({ settings, onChange, onResetAllScores }) {
+export function SettingsPanel({ settings, onChange, onResetAllScores, showHostName = true }) {
   const {
     hostName = "",
     timer,
@@ -42,11 +42,33 @@ export function SettingsPanel({ settings, onChange, onResetAllScores }) {
     falstartSound = "error",
   } = settings;
   const [resetArmed, setResetArmed] = useState(false);
+  const [draft, setDraft] = useState({
+    hostName,
+    timer,
+    wrongAnswerLimit,
+  });
+
+  useEffect(() => {
+    setDraft({ hostName, timer, wrongAnswerLimit });
+  }, [hostName, timer, wrongAnswerLimit]);
 
   const previewAndChange = (patch) => {
     const sound = patch.timerStartSound ?? patch.buzzerSound ?? patch.timerEndSound ?? patch.falstartSound;
     playGameSound(sound);
     onChange({ ...settings, ...patch });
+  };
+
+  const commitDraft = (field) => {
+    const value = String(draft[field] ?? "").trim();
+    if (String(settings[field] ?? "") === value) return;
+    if ((field === "timer" || field === "wrongAnswerLimit") && !value) return;
+    onChange({ ...settings, [field]: value });
+  };
+
+  const commitOnEnter = (event, field) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    event.currentTarget.blur();
   };
 
   const selectStyle = {
@@ -64,21 +86,27 @@ export function SettingsPanel({ settings, onChange, onResetAllScores }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 10, animation: "fadeIn 0.2s ease both" }}>
-      <div>
-        <Label>Boshlovchi ismi</Label>
-        <Input
-          value={hostName}
-          onChange={e => onChange({ ...settings, hostName: e.target.value })}
-          placeholder="Boshlovchi ismini kiriting"
-          style={{ maxWidth: 260 }}
-        />
-      </div>
+      {showHostName && (
+        <div>
+          <Label>Boshlovchi ismi</Label>
+          <Input
+            value={draft.hostName}
+            onChange={e => setDraft(current => ({ ...current, hostName: e.target.value }))}
+            onBlur={() => commitDraft("hostName")}
+            onKeyDown={e => commitOnEnter(e, "hostName")}
+            placeholder="Boshlovchi ismini kiriting"
+            style={{ maxWidth: 260 }}
+          />
+        </div>
+      )}
 
       <div>
         <Label>Taymer (soniya)</Label>
         <Input
-          value={timer}
-          onChange={e => onChange({ ...settings, timer: e.target.value })}
+          value={draft.timer}
+          onChange={e => setDraft(current => ({ ...current, timer: e.target.value }))}
+          onBlur={() => commitDraft("timer")}
+          onKeyDown={e => commitOnEnter(e, "timer")}
           type="number"
           style={{ maxWidth: 160 }}
         />
@@ -119,8 +147,10 @@ export function SettingsPanel({ settings, onChange, onResetAllScores }) {
         <div style={{ marginBottom: 14 }}>
           <Label>Nechta noto{T}g{T}ri javobgacha</Label>
           <Input
-            value={wrongAnswerLimit}
-            onChange={e => onChange({ ...settings, wrongAnswerLimit: e.target.value })}
+            value={draft.wrongAnswerLimit}
+            onChange={e => setDraft(current => ({ ...current, wrongAnswerLimit: e.target.value }))}
+            onBlur={() => commitDraft("wrongAnswerLimit")}
+            onKeyDown={e => commitOnEnter(e, "wrongAnswerLimit")}
             type="number"
             min="1"
             style={{ maxWidth: 160 }}

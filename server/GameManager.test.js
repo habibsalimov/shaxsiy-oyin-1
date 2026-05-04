@@ -136,6 +136,74 @@ test("host can update their display name", () => {
   assert.equal(gm.getGameState(room).hostName, "Xushnud");
 });
 
+test("host reconnects with token after changing display name", () => {
+  const gm = new GameManager();
+  const { code, hostToken } = gm.createRoom("host-socket", {
+    hostName: "Host",
+    rounds: 1,
+    topics: ["1-mavzu"],
+    nominals: [10],
+    timer: 7,
+    falstart: false,
+  });
+
+  gm.updateHostName("host-socket", { hostName: "Yangi Host" });
+  gm.handleDisconnect("host-socket");
+  const result = gm.joinRoom("host-socket-2", {
+    code,
+    playerName: "Host",
+    isHost: true,
+    hostToken,
+  });
+
+  assert.equal(result.isHost, true);
+  assert.equal(result.room.hostSocketId, "host-socket-2");
+  assert.equal(result.room.hostName, "Yangi Host");
+});
+
+test("join failures are rate limited by identity and room code", () => {
+  const gm = new GameManager();
+  const guard = {
+    code: "0000",
+    address: "127.0.0.1",
+    socketId: "socket-1",
+    now: 1000,
+  };
+
+  for (let i = 0; i < 10; i++) {
+    assert.equal(gm.isJoinBlocked({ ...guard, now: 1000 + i }), false);
+    gm.recordJoinFailure({ ...guard, now: 1000 + i });
+  }
+
+  assert.equal(gm.isJoinBlocked({ ...guard, now: 1011 }), false);
+  gm.recordJoinFailure({ ...guard, now: 1011 });
+  assert.equal(gm.isJoinBlocked({ ...guard, now: 1012 }), true);
+  assert.equal(gm.isJoinBlocked({ ...guard, address: "127.0.0.2", socketId: "socket-2", now: 1012 }), true);
+  assert.equal(gm.isJoinBlocked({ ...guard, now: 62_012 }), false);
+});
+
+test("inactive room cleanup removes stale rooms and socket mappings", () => {
+  const gm = new GameManager();
+  const { code, room } = gm.createRoom("host-socket", {
+    hostName: "Host",
+    rounds: 1,
+    topics: ["1-mavzu"],
+    nominals: [10],
+    timer: 7,
+    falstart: false,
+  });
+
+  gm.joinRoom("player-socket-1", { code, playerName: "Ali", isHost: false });
+  room.lastActivityAt = 1000;
+
+  const removed = gm.cleanupInactiveRooms(1000 + 3 * 60 * 60 * 1000 + 1);
+
+  assert.deepEqual(removed, [code]);
+  assert.equal(gm.rooms.has(code), false);
+  assert.equal(gm.getRoomForSocket("host-socket"), null);
+  assert.equal(gm.getRoomForSocket("player-socket-1"), null);
+});
+
 test("rooms include host buzzer setting defaults", () => {
   const { room } = createPlayingRoom();
 
@@ -217,6 +285,19 @@ test("host can reset every player score without removing the room setup", () => 
   assert.deepEqual(room.buzzOrder, []);
   assert.deepEqual([...room.falstartBlocked], []);
   assert.equal(room.cellLocked, false);
+});
+
+test("attachments are rejected when they exceed safety limits", () => {
+  const { gm, room } = createPlayingRoom();
+  const largeText = "a".repeat(2001);
+  const largeImage = `data:image/png;base64,${"a".repeat(3 * 1024 * 1024)}`;
+
+  const textResult = gm.setAttachment("host-socket", { ti: 0, ni: 0, type: "text", content: largeText });
+  const imageResult = gm.setAttachment("host-socket", { ti: 0, ni: 0, type: "image", content: largeImage });
+
+  assert.match(textResult.error, /2000/);
+  assert.match(imageResult.error, /2MB/);
+  assert.deepEqual(room.attachments, {});
 });
 
 test("timer expiry keeps the host on the current question and blocks buzzing", () => {

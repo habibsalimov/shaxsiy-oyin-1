@@ -30,6 +30,7 @@ export function ScoreBoard({ scores, players, nominals: nominalsProp, currentNom
     padding: `${pV}px ${pH}px`, textAlign: "center",
     fontSize: hdrFs, fontWeight: 700, letterSpacing: "0.06em",
     textTransform: "uppercase", color: "var(--text-secondary)",
+    background: "var(--bg-section)",
     borderBottom: "1px solid var(--border)", whiteSpace: "nowrap",
   };
   const tdS = {
@@ -77,7 +78,7 @@ export function ScoreBoard({ scores, players, nominals: nominalsProp, currentNom
             })();
             const isBlocked = blockedSet.has(playerId);
             return (
-              <tr key={playerId} style={{ opacity: isBlocked ? 0.45 : 1 }}>
+              <tr key={playerId} style={{ opacity: isBlocked ? 0.45 : 1, background: "var(--bg-card)" }}>
                 <td style={{ ...tdS, textAlign: "left", fontWeight: 600, fontSize: nmFs, borderRight: sep, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {p.name}
                   {isBlocked && <span style={{ fontSize: hdrFs, color: "var(--red)", marginLeft: 4, fontStyle: "italic" }}>(bloklangan)</span>}
@@ -94,7 +95,7 @@ export function ScoreBoard({ scores, players, nominals: nominalsProp, currentNom
                     ? { background: "var(--green-bg)", color: "var(--green)", fontWeight: 700 }
                     : r === "wrong"
                       ? { background: "var(--red-bg)", color: "var(--red)", fontWeight: 700 }
-                      : { color: "var(--text-muted)" };
+                      : { color: "var(--text-secondary)", fontWeight: 700 };
                   return (
                     <td key={n}
                       style={{ ...tdS, ...cs, fontSize: numFs, cursor: isHost ? "pointer" : "default" }}

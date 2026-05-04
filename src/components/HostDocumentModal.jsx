@@ -51,6 +51,9 @@ export function HostDocumentModal({ onClose, onOpenFile, onOpenGoogleDoc }) {
             <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.45, marginBottom: 14 }}>
               PDF, DOCX, rasm yoki matn/html fayl tanlang. Fayl faqat sizning brauzeringizda ochiladi.
             </div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.45, marginBottom: 14 }}>
+              Eslatma: hujjat boshlovchining shu brauzerida saqlanadi. Boshqa qurilmada qayta kirilsa, hujjatni yana ochish kerak bo'lishi mumkin.
+            </div>
             <label style={{
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               background: "var(--accent)", color: "var(--bg)", borderRadius: 6,

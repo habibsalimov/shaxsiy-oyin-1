@@ -136,7 +136,7 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
 
           <div style={{ borderTop: "1px solid var(--border)", marginBottom: 4 }}>
             <SectionToggle label="Sozlamalar" extra={settingsSummary} isOpen={settingsOpen} onToggle={() => setSettingsOpen(o => !o)} />
-            {settingsOpen && <SettingsPanel settings={settings} onChange={setSettings} />}
+            {settingsOpen && <SettingsPanel settings={settings} onChange={setSettings} showHostName={false} />}
           </div>
 
           <div style={{ borderTop: "1px solid var(--border)", marginBottom: 16 }}>

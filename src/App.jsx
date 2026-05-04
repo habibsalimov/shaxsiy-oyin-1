@@ -96,7 +96,7 @@ export default function App() {
       window.location.hash = "";
     }
 
-    const unsub1 = onEvent("room-created", ({ code }) => {
+    const unsub1 = onEvent("room-created", ({ code, hostToken }) => {
       setRoomCode(code);
       setIsHost(true);
       setScreen("hostGame");
@@ -108,12 +108,18 @@ export default function App() {
         if (pending && pending.playerName) hostName = pending.playerName;
         sessionStorage.removeItem("game-session-pending");
       } catch (e) { }
-      sessionStorage.setItem("game-session", JSON.stringify({ roomCode: code, isHost: true, playerName: hostName }));
+      sessionStorage.setItem("game-session", JSON.stringify({ roomCode: code, isHost: true, playerName: hostName, hostToken }));
     });
 
     const unsub2 = onEvent("game-state", (state) => {
       gameStateRef.current = state;
       setGameState(state);
+      try {
+        const session = JSON.parse(sessionStorage.getItem("game-session") || "null");
+        if (session?.isHost && session.roomCode === state.code && session.playerName !== state.hostName) {
+          sessionStorage.setItem("game-session", JSON.stringify({ ...session, playerName: state.hostName }));
+        }
+      } catch { }
       setScreen(prev => {
         if (prev === "landing") {
           const session = JSON.parse(sessionStorage.getItem("game-session") || "null");

@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import DOMPurify from "dompurify";
 import { T } from "../utils/constants.js";
 import { toGoogleDocsPreviewUrl } from "../utils/documentLinks.js";
 
@@ -7,6 +9,7 @@ export function HostDocumentPanel({ document, zoom = 100, onZoom, onClose, onRep
   const isImage = document.kind === "image";
   const isFrame = document.kind === "frame";
   const isHtml = document.kind === "html";
+  const safeHtml = useMemo(() => DOMPurify.sanitize(document.html || ""), [document.html]);
   const zoomScale = Math.max(0.5, Math.min(2, zoom / 100));
   const frameUrl = document.source === "google-docs" ? toGoogleDocsPreviewUrl(document.originalUrl || document.url) || document.url : document.url;
   const scaledFrameStyle = {
@@ -98,7 +101,7 @@ export function HostDocumentPanel({ document, zoom = 100, onZoom, onClose, onRep
               padding: "34px 42px", fontFamily: "Georgia, 'Times New Roman', serif",
               fontSize: 18 * zoomScale, lineHeight: 1.58,
             }}
-            dangerouslySetInnerHTML={{ __html: document.html || "" }}
+            dangerouslySetInnerHTML={{ __html: safeHtml }}
           />
         )}
         {!isFrame && !isImage && !isHtml && (

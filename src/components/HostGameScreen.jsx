@@ -352,12 +352,19 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   const handleAttachImage = (ti, ni, e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Rasm hajmi 2MB dan oshmasin");
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       emitEvent("set-attachment", { ti, ni, type: "image", content: reader.result });
       setAttachMode(null);
     };
     reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   const removeAttachment = (ti, ni, type) => {
@@ -398,6 +405,29 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     emitEvent("reset-all-scores");
   };
 
+  const headerToolStyle = (active = false) => ({
+    minWidth: 38,
+    height: 36,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: active ? "var(--accent-bg)" : "var(--bg-input)",
+    border: `1px solid ${active ? "var(--accent)" : "var(--border-strong)"}`,
+    borderRadius: 6,
+    padding: "0 10px",
+    cursor: "pointer",
+    color: active ? "var(--accent)" : "var(--text-secondary)",
+    fontSize: 14,
+    fontWeight: 800,
+    fontFamily: "inherit",
+    lineHeight: 1,
+    transition: "all 0.15s",
+  });
+
+  const compactHeader = windowWidth < 640;
+  const showHeaderLabels = windowWidth >= 820;
+  const nextButtonIsPrimary = cellLocked || (!timerEnd && timerPausedRemaining === null && buzzOrder.length === 0 && gamePhase === "playing");
+
   // ─── Loading state ───────────────────────────────────────────────────────
   if (!gameState) {
     return (
@@ -411,46 +441,58 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       {/* Topbar */}
       <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 20px", borderBottom: "1px solid var(--border)",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14,
+        padding: compactHeader ? "10px 12px" : "12px 20px", borderBottom: "1px solid var(--border)",
         background: "var(--header-bg)", backdropFilter: "blur(8px)",
-        flexShrink: 0, zIndex: 90,
+        flexShrink: 0, zIndex: 90, overflowX: "auto",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, letterSpacing: "0.1em", color: "var(--accent)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: compactHeader ? 8 : 12, flexShrink: 0 }}>
+          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: compactHeader ? 18 : 21, lineHeight: 0.95, letterSpacing: "0.1em", color: "var(--accent)", whiteSpace: "nowrap" }}>
             {`SHAXSIY O${T}YIN`}
           </span>
-          <Badge color="yellow">BOSHLOVCHI</Badge>
+          {showHeaderLabels && <Badge color="yellow">BOSHLOVCHI</Badge>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Btn size="sm" variant={copied ? "success" : "ghost"} onClick={copyCode}>
-            {copied ? "\u2713 Nusxalandi" : `Kod: ${roomCode || "..."}`}
-          </Btn>
-          <Btn size="sm" variant={roomLocked ? "danger" : "ghost"} onClick={toggleLockRoom}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+          padding: "4px", borderRadius: 10, background: "var(--bg-section)",
+          border: "1px solid var(--border)",
+        }}>
+          <button onClick={copyCode} style={{
+            display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            minWidth: copied ? 120 : 76, height: 42, borderRadius: 7,
+            background: copied ? "var(--green)" : "var(--bg-card)",
+            border: `1px solid ${copied ? "var(--green)" : "var(--border)"}`,
+            color: copied ? "var(--bg)" : "var(--text)", cursor: "pointer",
+            fontFamily: "inherit", transition: "all 0.15s",
+          }} title="Xona kodini nusxalash">
+            <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color: copied ? "var(--bg)" : "var(--text-secondary)" }}>
+              {copied ? "Nusxalandi" : "Kod"}
+            </span>
+            <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 18, letterSpacing: "0.08em", color: copied ? "var(--bg)" : "var(--accent)" }}>
+              {copied ? "\u2713" : (roomCode || "...")}
+            </span>
+          </button>
+          {showHeaderLabels && (
+            <span style={{ fontSize: 10, fontWeight: 900, color: "var(--text-secondary)", letterSpacing: "0.12em", textTransform: "uppercase", padding: "0 2px" }}>
+              Asboblar
+            </span>
+          )}
+          <button onClick={toggleLockRoom} style={headerToolStyle(roomLocked)} title={roomLocked ? "Xona qulflangan" : "Xonani qulflash"}>
             {roomLocked ? "\uD83D\uDD12" : "\uD83D\uDD13"}
-          </Btn>
-          <button onClick={() => setDocumentModalOpen(true)} style={{
-            background: hostDocument ? "var(--accent-bg)" : "var(--bg-input)",
-            border: `1px solid ${hostDocument ? "var(--accent)" : "var(--text-muted)"}`,
-            borderRadius: 4, padding: "7px 10px", cursor: "pointer",
-            color: hostDocument ? "var(--accent)" : "var(--text-secondary)", fontSize: 14, fontWeight: 800,
-            fontFamily: "inherit", lineHeight: 1, transition: "all 0.15s",
-          }} title="Hujjat ochish">{"\uD83D\uDCC4"}</button>
-          <button onClick={() => setPlayersOpen(o => !o)} style={{
-            background: playersOpen ? "var(--accent-bg)" : "var(--bg-input)",
-            border: `1px solid ${playersOpen ? "var(--accent)" : "var(--text-muted)"}`,
-            borderRadius: 4, padding: "7px 10px", cursor: "pointer",
-            color: playersOpen ? "var(--accent)" : "var(--text-secondary)", fontSize: 13, fontWeight: 700,
-            fontFamily: "inherit", lineHeight: 1, transition: "all 0.15s",
-          }}>{"\uD83D\uDC65"}</button>
-          <button onClick={() => setSettingsOpen(o => !o)} style={{
-            background: settingsOpen ? "var(--accent-bg)" : "var(--bg-input)",
-            border: `1px solid ${settingsOpen ? "var(--accent)" : "var(--text-muted)"}`,
-            borderRadius: 4, padding: "7px 10px", cursor: "pointer",
-            color: settingsOpen ? "var(--accent)" : "var(--text-secondary)", fontSize: 16, lineHeight: 1, transition: "all 0.15s",
-          }}>{"\u2699"}</button>
+          </button>
+          <button onClick={() => setDocumentModalOpen(true)} style={headerToolStyle(!!hostDocument)} title="Hujjat ochish">
+            {"\uD83D\uDCC4"}
+          </button>
+          <button onClick={() => setPlayersOpen(o => !o)} style={headerToolStyle(playersOpen)} title="O'yinchilar boshqaruvi">
+            {"\uD83D\uDC65"}
+          </button>
+          <button onClick={() => setSettingsOpen(o => !o)} style={{ ...headerToolStyle(settingsOpen), fontSize: 16 }} title="Sozlamalar">
+            {"\u2699"}
+          </button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <ThemeToggle />
-          <Btn size="sm" variant="danger" onClick={onFinish}>Tugatish</Btn>
+          <Btn size="sm" variant="danger" onClick={onFinish} style={{ height: 36, borderRadius: 7 }}>Tugatish</Btn>
         </div>
       </div>
 
@@ -794,29 +836,42 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                   </div>
                                 )}
 
-                                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                                  <button onClick={() => { setAttachMode({ ti, ni, type: "text" }); setAttachText(""); }} style={{ background: "var(--bg-input)", border: "1px solid var(--border-strong)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "var(--text-secondary)", fontSize: 14 }}>{"\uD83D\uDCDD"}</button>
-                                  <label style={{ background: "var(--bg-input)", border: "1px solid var(--border-strong)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "var(--text-secondary)", fontSize: 14 }}>
-                                    {"\uD83D\uDDBC\uFE0F"}<input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleAttachImage(ti, ni, e)} />
-                                  </label>
-                                  <button onClick={resetActiveCell} style={{
-                                    background: "var(--red-bg-strong)",
-                                    border: "1px solid var(--red)",
-                                    borderRadius: 4, padding: "6px 10px", cursor: "pointer",
-                                    color: "var(--red)", fontSize: 14, fontWeight: 700, fontFamily: "inherit",
-                                  }} title="Faol savolni qayta boshlash">{"\u21BB"}</button>
-                                  <button onClick={() => emitEvent("lock-cell")} style={{
-                                    background: isLocked ? "rgba(243,156,18,0.15)" : "var(--bg-input)",
-                                    border: `1px solid ${isLocked ? "var(--orange)" : "var(--border-strong)"}`,
-                                    borderRadius: 4, padding: "6px 12px", cursor: "pointer",
-                                    color: isLocked ? "var(--orange)" : "var(--text-secondary)", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
-                                  }}>{isLocked ? "\uD83D\uDD12 Bloklangan" : "\uD83D\uDD13 Qulf"}</button>
-                                  <div style={{ flex: 1 }} />
+                                <div style={{ marginBottom: 10 }}>
+                                  <div style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>
+                                    Savol asboblari
+                                  </div>
+                                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                    <button onClick={() => { setAttachMode({ ti, ni, type: "text" }); setAttachText(""); }} style={{
+                                      background: "var(--bg-input)", border: "1px solid var(--border-strong)",
+                                      borderRadius: 6, minWidth: 38, height: 34, cursor: "pointer",
+                                      color: "var(--text-secondary)", fontSize: 14,
+                                    }} title="Savolga matn biriktirish">{"\uD83D\uDCDD"}</button>
+                                    <label style={{
+                                      background: "var(--bg-input)", border: "1px solid var(--border-strong)",
+                                      borderRadius: 6, minWidth: 38, height: 34, display: "inline-flex",
+                                      alignItems: "center", justifyContent: "center", cursor: "pointer",
+                                      color: "var(--text-secondary)", fontSize: 14,
+                                    }} title="Savolga rasm biriktirish">
+                                      {"\uD83D\uDDBC\uFE0F"}<input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleAttachImage(ti, ni, e)} />
+                                    </label>
+                                    <button onClick={resetActiveCell} style={{
+                                      background: "var(--red-bg)",
+                                      border: "1px solid var(--red)",
+                                      borderRadius: 6, minWidth: 38, height: 34, cursor: "pointer",
+                                      color: "var(--red)", fontSize: 14, fontWeight: 900, fontFamily: "inherit",
+                                    }} title="Faol savolni qayta boshlash">{"\u21BB"}</button>
+                                    <button onClick={() => emitEvent("lock-cell")} style={{
+                                      background: isLocked ? "var(--orange-bg)" : "var(--bg-input)",
+                                      border: `1px solid ${isLocked ? "var(--orange)" : "var(--border-strong)"}`,
+                                      borderRadius: 6, minHeight: 34, padding: "0 12px", cursor: "pointer",
+                                      color: isLocked ? "var(--orange)" : "var(--text-secondary)", fontSize: 12, fontWeight: 800, fontFamily: "inherit",
+                                    }} title="Savolni bloklash">{isLocked ? "\uD83D\uDD12 Bloklangan" : "\uD83D\uDD13 Qulf"}</button>
+                                  </div>
                                 </div>
 
                                 {!timerEnd && timerPausedRemaining === null && buzzOrder.length === 0 ? (
-                                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                                    <Btn style={{ flex: 1 }} size="sm" onClick={startTimer} disabled={isLocked}>{"\u25B6"} Taymerni boshlash</Btn>
+                                  <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                                    <Btn style={{ flex: 1, minHeight: 40, borderRadius: 7, boxShadow: isLocked ? "none" : "0 10px 24px var(--accent-glow)" }} size="sm" onClick={startTimer} disabled={isLocked}>{"\u25B6"} Taymerni boshlash</Btn>
                                   </div>
                                 ) : (timerEnd || timerPausedRemaining !== null) ? (
                                   <div style={{ marginBottom: 8 }}>
@@ -874,8 +929,22 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                   </div>
                                 )}
 
-                                <div style={{ marginTop: 8 }}>
-                                  <Btn variant="success" size="sm" style={{ width: "100%" }} onClick={skipQuestion}>{nextButtonLabel} {"\u2192"}</Btn>
+                                <div style={{ marginTop: 10 }}>
+                                  <Btn
+                                    variant={nextButtonIsPrimary ? "success" : "ghost"}
+                                    size="sm"
+                                    style={{
+                                      width: "100%",
+                                      minHeight: 38,
+                                      borderRadius: 7,
+                                      border: nextButtonIsPrimary ? "none" : "1px solid var(--green)",
+                                      color: nextButtonIsPrimary ? "var(--bg)" : "var(--green)",
+                                      background: nextButtonIsPrimary ? "var(--green)" : "var(--green-bg)",
+                                    }}
+                                    onClick={skipQuestion}
+                                  >
+                                    {nextButtonLabel} {"\u2192"}
+                                  </Btn>
                                 </div>
                               </>
                             )}
