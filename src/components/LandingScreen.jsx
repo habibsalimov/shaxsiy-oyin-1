@@ -11,7 +11,18 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
   const [topics, setTopics] = useState("");
   const [topicsOpen, setTopicsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState({ timer: "7", selectedPreset: 0, falstart: false });
+  const [settings, setSettings] = useState({
+    timer: "7",
+    selectedPreset: 0,
+    wrongAnswerLimit: "3",
+    queuedAnswers: false,
+    falstart: false,
+    latencyCompensation: true,
+    timerStartSound: "gudok",
+    buzzerSound: "pop",
+    timerEndSound: "ding",
+    falstartSound: "error",
+  });
   const [hostError, setHostError] = useState("");
   const [playerName, setPlayerName] = useState("");
   const [gameCode, setGameCode] = useState("");
@@ -30,7 +41,14 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
       topics: topics.split("\n").map(s => s.trim()).filter(Boolean),
       nominals: NOMINAL_PRESETS[settings.selectedPreset],
       timer: settings.timer,
+      wrongAnswerLimit: settings.wrongAnswerLimit,
+      queuedAnswers: settings.queuedAnswers,
       falstart: settings.falstart,
+      latencyCompensation: settings.latencyCompensation,
+      timerStartSound: settings.timerStartSound,
+      buzzerSound: settings.buzzerSound,
+      timerEndSound: settings.timerEndSound,
+      falstartSound: settings.falstartSound,
     });
   };
 
@@ -60,7 +78,7 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
     padding: "28px 24px", display: "flex", flexDirection: "column", flex: 1, minWidth: 280,
   };
 
-  const settingsSummary = `— taymer: ${settings.timer}s · ${NOMINAL_PRESETS[settings.selectedPreset].join("/")} · falstart: ${settings.falstart ? "yoniq" : `o${T}chiq`}`;
+  const settingsSummary = `— taymer: ${settings.timer}s · xato: ${settings.wrongAnswerLimit || 3} · navbat: ${settings.queuedAnswers ? "yoniq" : `o${T}chiq`} · ${NOMINAL_PRESETS[settings.selectedPreset].join("/")} · falstart: ${settings.falstart ? "yoniq" : `o${T}chiq`} · ping: ${settings.latencyCompensation ? "yoniq" : `o${T}chiq`}`;
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", animation: "fadeIn 0.4s ease both" }}>

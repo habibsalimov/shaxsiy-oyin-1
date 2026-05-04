@@ -5,7 +5,12 @@ import { emitEvent } from '../socket.js';
 import { Btn, Badge, Card, Label, Input, TimerDisplay } from './ui/index.js';
 import { ScoreBoard } from './ScoreBoard.jsx';
 import { SettingsPanel } from './SettingsPanel.jsx';
+import { HostDocumentModal } from './HostDocumentModal.jsx';
+import { HostDocumentPanel } from './HostDocumentPanel.jsx';
 import { ThemeToggle } from '../theme.jsx';
+import { getHostDocumentKind } from '../utils/documentFiles.js';
+import { getNextDocumentZoom } from '../utils/documentZoom.js';
+import { clearHostDocument, loadHostDocument, saveHostDocument, saveHostDocumentViewState } from '../utils/hostDocumentStorage.js';
 
 export function HostGameScreen({ gameState, roomCode, attachments: attachmentsProp, onFinish }) {
   // ─── Local UI-only state ───────────────────────────────────────────────────
@@ -20,6 +25,11 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   const [attachText, setAttachText]   = useState("");
   const [confirmReset, setConfirmReset] = useState(null);
   const [playersOpen, setPlayersOpen]   = useState(false);
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [hostDocument, setHostDocument] = useState(null);
+  const [documentPanePct, setDocumentPanePct] = useState(55);
+  const [documentZoom, setDocumentZoom] = useState(100);
+  const [isResizingDocument, setIsResizingDocument] = useState(false);
   // Attachments now synced via server (gameState.attachments)
   const [lightboxSrc, setLightboxSrc] = useState(null);
   // Expanded history panel for old (done) cells
@@ -31,6 +41,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   const currentTopicIdx = gameState?.currentTopicIdx || 0;
   const activeCell = gameState?.activeCell;
   const timerEnd = gameState?.timerEnd;
+  const timerPausedRemaining = gameState?.timerPausedRemaining ?? null;
   const buzzOrder = gameState?.buzzOrder || [];
   const blockedPlayers = new Set(gameState?.blockedPlayers || []);
   const falstartBlocked = new Set(gameState?.falstartBlocked || []);
@@ -40,12 +51,53 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   const topicNames = gameState?.topicNames || [];
   const activeNominals = gameState?.settings?.nominals || [10,20,30,40,50];
   const timerSec = gameState?.settings?.timer || 7;
-  const settings = gameState?.settings || { timer: 7, nominals: [10,20,30,40,50], falstart: false };
+  const settings = gameState?.settings || { timer: 7, nominals: [10,20,30,40,50], wrongAnswerLimit: 3, queuedAnswers: false, falstart: false, latencyCompensation: true, timerStartSound: "gudok", buzzerSound: "pop", timerEndSound: "ding", falstartSound: "error" };
   const topicNominals = gameState?.topicNominals || [];
   const cellLocked = gameState?.cellLocked || false;
 
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 640;
+
+  useEffect(() => {
+    return () => {
+      if (hostDocument?.objectUrl) URL.revokeObjectURL(hostDocument.objectUrl);
+    };
+  }, [hostDocument?.objectUrl]);
+
+  useEffect(() => {
+    if (!isResizingDocument) return;
+
+    const onMove = (event) => {
+      const nextPct = Math.min(72, Math.max(30, (event.clientX / Math.max(window.innerWidth, 1)) * 100));
+      setDocumentPanePct(nextPct);
+    };
+    const onUp = () => setIsResizingDocument(false);
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [isResizingDocument]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadHostDocument(roomCode).then(saved => {
+      if (cancelled || !saved?.document) return;
+      setHostDocument(saved.document);
+      setDocumentZoom(saved.zoom);
+      setDocumentPanePct(saved.panePct);
+    });
+
+    return () => { cancelled = true; };
+  }, [roomCode]);
+
+  useEffect(() => {
+    if (!hostDocument || !roomCode) return;
+    saveHostDocumentViewState(roomCode, { zoom: documentZoom, panePct: documentPanePct });
+  }, [roomCode, hostDocument, documentZoom, documentPanePct]);
 
   // ─── Computed values ─────────────────────────────────────────────────────
   const computeNextAllowed = (cd) => {
@@ -140,6 +192,14 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     emitEvent("start-timer", { ti: activeCell.ti, ni: activeCell.ni });
   };
 
+  const pauseTimer = () => {
+    emitEvent("pause-timer");
+  };
+
+  const resumeTimer = () => {
+    emitEvent("resume-timer");
+  };
+
   const activateCellViaTimer = (ti, ni) => {
     // Starting a timer on a cell effectively activates it on the server
     emitEvent("start-timer", { ti, ni });
@@ -215,6 +275,69 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     }, 2000);
   };
 
+  const openComputerDocument = async (file) => {
+    setDocumentZoom(100);
+    const kind = getHostDocumentKind(file);
+    if (kind === "docx") {
+      const mammoth = await import("mammoth/mammoth.browser");
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.convertToHtml({ arrayBuffer });
+      setHostDocument({
+        persisted: true,
+        source: "file",
+        title: file.name,
+        kind: "html",
+        html: result.value,
+      });
+      saveHostDocument(roomCode, {
+        source: "file",
+        title: file.name,
+        kind: "html",
+        html: result.value,
+      }, { zoom: 100, panePct: documentPanePct });
+      setDocumentModalOpen(false);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const nextDocument = {
+      persisted: true,
+      source: "file",
+      title: file.name,
+      url: objectUrl,
+      objectUrl,
+      blob: file,
+      kind,
+    };
+    setHostDocument(nextDocument);
+    saveHostDocument(roomCode, nextDocument, { zoom: 100, panePct: documentPanePct });
+    setDocumentModalOpen(false);
+  };
+
+  const openGoogleDocument = ({ title, url, originalUrl }) => {
+    setDocumentZoom(100);
+    const nextDocument = {
+      persisted: true,
+      source: "google-docs",
+      title,
+      url,
+      originalUrl,
+      kind: "frame",
+    };
+    setHostDocument(nextDocument);
+    saveHostDocument(roomCode, nextDocument, { zoom: 100, panePct: documentPanePct });
+    setDocumentModalOpen(false);
+  };
+
+  const closeHostDocument = () => {
+    setHostDocument(null);
+    clearHostDocument(roomCode);
+  };
+
+  const changeDocumentZoom = (action) => {
+    setDocumentZoom(current => getNextDocumentZoom(current, action));
+  };
+
   // ─── Attachment handling (synced via server) ─────────────────────────────
   const serverAttachments = attachmentsProp || {};
   const getAttachment = (ti, ni) => serverAttachments[cellKey(ti, ni)] || null;
@@ -243,20 +366,36 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
 
 
   // ─── Derive settings summary for display ─────────────────────────────────
-  const settingsSummary = `— ${timerSec}s \xb7 ${activeNominals.join("/")} \xb7 falstart: ${settings.falstart ? "yoniq" : `o${T}chiq`}`;
+  const settingsSummary = `— ${timerSec}s \xb7 xato: ${settings.wrongAnswerLimit || 3} \xb7 navbat: ${settings.queuedAnswers ? "yoniq" : `o${T}chiq`} \xb7 ${activeNominals.join("/")} \xb7 falstart: ${settings.falstart ? "yoniq" : `o${T}chiq`} \xb7 ping: ${settings.latencyCompensation !== false ? "yoniq" : `o${T}chiq`}`;
 
   // Derive selectedPreset from current nominals for SettingsPanel
   const selectedPreset = Math.max(0, NOMINAL_PRESETS.findIndex(p =>
     p.length === activeNominals.length && p.every((v, i) => v === activeNominals[i])
   ));
+  const activeCellNominals = activeCell ? (topicNominals[activeCell.ti] || activeNominals) : activeNominals;
+  const nextButtonLabel = activeCell && activeCell.ni === activeCellNominals.length - 1 ? "Keyingi mavzu" : "Keyingi savol";
 
   const handleSettingsChange = (newSettings) => {
     const nominals = NOMINAL_PRESETS[newSettings.selectedPreset] || NOMINAL_PRESETS[0];
+    if (newSettings.hostName !== gameState?.hostName) {
+      emitEvent("update-host-name", { hostName: newSettings.hostName });
+    }
     emitEvent("update-settings", {
       timer: parseInt(newSettings.timer) || 7,
       nominals,
+      wrongAnswerLimit: newSettings.wrongAnswerLimit,
+      queuedAnswers: newSettings.queuedAnswers,
       falstart: newSettings.falstart,
+      latencyCompensation: newSettings.latencyCompensation,
+      timerStartSound: newSettings.timerStartSound,
+      buzzerSound: newSettings.buzzerSound,
+      timerEndSound: newSettings.timerEndSound,
+      falstartSound: newSettings.falstartSound,
     });
+  };
+
+  const resetAllScores = () => {
+    emitEvent("reset-all-scores");
   };
 
   // ─── Loading state ───────────────────────────────────────────────────────
@@ -290,6 +429,13 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
           <Btn size="sm" variant={roomLocked ? "danger" : "ghost"} onClick={toggleLockRoom}>
             {roomLocked ? "\uD83D\uDD12" : "\uD83D\uDD13"}
           </Btn>
+          <button onClick={() => setDocumentModalOpen(true)} style={{
+            background: hostDocument ? "var(--accent-bg)" : "var(--bg-input)",
+            border: `1px solid ${hostDocument ? "var(--accent)" : "var(--text-muted)"}`,
+            borderRadius: 4, padding: "7px 10px", cursor: "pointer",
+            color: hostDocument ? "var(--accent)" : "var(--text-secondary)", fontSize: 14, fontWeight: 800,
+            fontFamily: "inherit", lineHeight: 1, transition: "all 0.15s",
+          }} title="Hujjat ochish">{"\uD83D\uDCC4"}</button>
           <button onClick={() => setPlayersOpen(o => !o)} style={{
             background: playersOpen ? "var(--accent-bg)" : "var(--bg-input)",
             border: `1px solid ${playersOpen ? "var(--accent)" : "var(--text-muted)"}`,
@@ -328,11 +474,32 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
               }}>{"\u2715"}</button>
             </div>
             <SettingsPanel
-              settings={{ timer: String(timerSec), selectedPreset, falstart: settings.falstart }}
+              settings={{
+                hostName: gameState?.hostName || "",
+                timer: String(timerSec),
+                selectedPreset,
+                wrongAnswerLimit: String(settings.wrongAnswerLimit || 3),
+                queuedAnswers: !!settings.queuedAnswers,
+                falstart: settings.falstart,
+                latencyCompensation: settings.latencyCompensation !== false,
+                timerStartSound: settings.timerStartSound || "gudok",
+                buzzerSound: settings.buzzerSound || "pop",
+                timerEndSound: settings.timerEndSound || "ding",
+                falstartSound: settings.falstartSound || "error",
+              }}
               onChange={handleSettingsChange}
+              onResetAllScores={resetAllScores}
             />
           </div>
         </div>
+      )}
+
+      {documentModalOpen && (
+        <HostDocumentModal
+          onClose={() => setDocumentModalOpen(false)}
+          onOpenFile={openComputerDocument}
+          onOpenGoogleDoc={openGoogleDocument}
+        />
       )}
 
       {playersOpen && (
@@ -437,7 +604,35 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
 
       {/* Main game layout */}
       {gamePhase !== "lobby" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: isMobile ? "auto" : "hidden", minHeight: 0 }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden", minHeight: 0 }}>
+          {hostDocument && (
+            <div style={isMobile
+              ? { width: "100%", height: "45vh", minHeight: 300, flexShrink: 0, borderBottom: "1px solid var(--border)" }
+              : { width: `${documentPanePct}%`, minWidth: 320, maxWidth: "72vw", flexShrink: 0, minHeight: 0 }
+            }>
+              <HostDocumentPanel
+                document={hostDocument}
+                zoom={documentZoom}
+                onZoom={changeDocumentZoom}
+                onClose={closeHostDocument}
+                onReplace={() => setDocumentModalOpen(true)}
+              />
+            </div>
+          )}
+          {hostDocument && !isMobile && (
+            <div
+              onMouseDown={() => setIsResizingDocument(true)}
+              title="Hujjat enini sozlash"
+              style={{
+                width: 9, flexShrink: 0, cursor: "col-resize",
+                background: isResizingDocument ? "var(--accent)" : "var(--border)",
+                opacity: isResizingDocument ? 0.9 : 0.55,
+                transition: "background 0.12s, opacity 0.12s",
+              }}
+            />
+          )}
+
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: isMobile ? "auto" : "hidden", minHeight: 0 }}>
 
           {/* LEFT: Topic/Question tree */}
           <div style={isMobile ? { width: "100%", borderBottom: "1px solid var(--border)", overflowY: "visible" }
@@ -518,7 +713,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
 
                         {(isActive || expandedCell === cellKey(ti, ni)) && (
                           <div style={{ margin: "0 8px 8px", borderRadius: 6, background: "var(--bg-card)", border: "1px solid var(--border-strong)", padding: "12px 14px", animation: "fadeIn 0.15s ease both" }}>
-                            {(isDone || expandedCell === cellKey(ti, ni)) ? (
+                            {((isDone && !isActive) || expandedCell === cellKey(ti, ni)) ? (
                               <>
                                 <div style={{ marginBottom: 12 }}>
                                   <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>Savol tarixi</div>
@@ -528,6 +723,12 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                         <span style={{ color: "var(--text-muted)", fontStyle: "italic", fontSize: 12 }}>
                                           {h.result === "no_answer" ? "\u23F1 Hech kim javob bermadi" : "\u23ED O'tkazib yuborildi"}
                                         </span>
+                                      ) : h.result === "falstart" ? (
+                                        <>
+                                          <span style={{ color: "var(--orange)", fontSize: 15, minWidth: 16 }}>{"\u26A1"}</span>
+                                          <span style={{ flex: 1, fontWeight: 600 }}>{h.playerName}</span>
+                                          <span style={{ color: "var(--orange)", fontFamily: "'Anton', sans-serif", fontSize: 13, letterSpacing: "0.04em" }}>FALSTART</span>
+                                        </>
                                       ) : (
                                         <>
                                           <span style={{ color: h.result === "correct" ? "var(--green)" : "var(--red)", fontSize: 15, minWidth: 16 }}>{h.result === "correct" ? "\u2713" : "\u2717"}</span>
@@ -613,19 +814,38 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                   <div style={{ flex: 1 }} />
                                 </div>
 
-                                {!timerEnd ? (
+                                {!timerEnd && timerPausedRemaining === null && buzzOrder.length === 0 ? (
                                   <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                                     <Btn style={{ flex: 1 }} size="sm" onClick={startTimer} disabled={isLocked}>{"\u25B6"} Taymerni boshlash</Btn>
                                   </div>
-                                ) : (
+                                ) : (timerEnd || timerPausedRemaining !== null) ? (
                                   <div style={{ marginBottom: 8 }}>
-                                    <TimerDisplay timerEnd={timerEnd} timerSec={timerSec} />
+                                    <TimerDisplay timerEnd={timerEnd} timerSec={timerSec} pausedRemainingMs={timerPausedRemaining} />
+                                    <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 8 }}>
+                                      {timerEnd ? (
+                                        <button onClick={pauseTimer} style={{
+                                          width: 42, height: 34, borderRadius: 6,
+                                          background: "var(--bg-input)", border: "1px solid var(--border-strong)",
+                                          color: "var(--text)", cursor: "pointer", fontSize: 16, fontWeight: 900,
+                                          fontFamily: "inherit", lineHeight: 1,
+                                        }} title="Taymerni pauza qilish">{"\u23F8"}</button>
+                                      ) : (
+                                        <button onClick={resumeTimer} style={{
+                                          width: 42, height: 34, borderRadius: 6,
+                                          background: "var(--accent)", border: "1px solid var(--accent)",
+                                          color: "var(--bg)", cursor: "pointer", fontSize: 16, fontWeight: 900,
+                                          fontFamily: "inherit", lineHeight: 1,
+                                        }} title="Taymerni davom ettirish">{"\u25B6"}</button>
+                                      )}
+                                    </div>
                                   </div>
-                                )}
+                                ) : null}
 
                                 {buzzOrder.length > 0 && (
                                   <div style={{ marginBottom: 8 }}>
-                                    <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase" }}>Javob tartibi</div>
+                                    <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase" }}>
+                                      {settings.queuedAnswers ? "Javob tartibi" : "Birinchi bosgan va kechikkanlar"}
+                                    </div>
                                     {buzzOrder.map((b, i) => (
                                       <div key={b.playerId} style={{
                                         display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 4, marginBottom: 4,
@@ -655,7 +875,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                 )}
 
                                 <div style={{ marginTop: 8 }}>
-                                  <Btn variant="success" size="sm" style={{ width: "100%" }} onClick={skipQuestion}>Keyingi savol {"\u2192"}</Btn>
+                                  <Btn variant="success" size="sm" style={{ width: "100%" }} onClick={skipQuestion}>{nextButtonLabel} {"\u2192"}</Btn>
                                 </div>
                               </>
                             )}
@@ -733,6 +953,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{`Katakchani bosib natijani o${T}zgartirish mumkin (null \u2192 to${T}g${T}ri \u2192 noto${T}g${T}ri \u2192 null)`}</div>
             )}
           </div>
+        </div>
         </div>
       )}
       {lightboxSrc && (

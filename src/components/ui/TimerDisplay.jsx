@@ -1,9 +1,10 @@
 import { useTimer } from '../../hooks/useTimer.js';
 
-export function TimerDisplay({ timerEnd, timerSec }) {
-  const rem = useTimer(timerEnd, timerSec);
+export function TimerDisplay({ timerEnd, timerSec, pausedRemainingMs = null }) {
+  const runningRem = useTimer(timerEnd, timerSec);
+  const rem = pausedRemainingMs !== null ? Math.max(0, pausedRemainingMs / 1000) : runningRem;
   const pct = timerSec > 0 ? (rem / timerSec) * 100 : 0;
-  const urgent = rem <= 5 && timerEnd;
+  const urgent = rem <= 5 && (timerEnd || pausedRemainingMs !== null);
   return (
     <div>
       <div style={{

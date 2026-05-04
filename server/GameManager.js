@@ -1,4 +1,16 @@
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const SOUND_OPTIONS = new Set(["off", "button", "ding", "game-menu", "happy", "join", "notification", "paper-fold", "pop", "error", "beep", "gudok"]);
+const LATE_BUZZ_WINDOW_MS = 100;
+
+function normalizeSound(value, fallback) {
+  return SOUND_OPTIONS.has(value) ? value : fallback;
+}
+
+function normalizeWrongAnswerLimit(value) {
+  const parsed = parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return 3;
+  return Math.max(1, parsed);
+}
 
 function generateCode(existing) {
   for (let i = 0; i < 200; i++) {
@@ -24,7 +36,7 @@ export class GameManager {
     this.socketToRoom = new Map();
   }
 
-  createRoom(socketId, { hostName, rounds, topics, nominals, timer, falstart }) {
+  createRoom(socketId, { hostName, rounds, topics, nominals, timer, falstart, wrongAnswerLimit, queuedAnswers, latencyCompensation, timerStartSound, buzzerSound, timerEndSound, falstartSound }) {
     const code = generateCode(new Set(this.rooms.keys()));
     const topicNames = (Array.isArray(topics) && topics.length > 0)
       ? topics
@@ -35,7 +47,18 @@ export class GameManager {
       hostSocketId: socketId,
       hostName,
       hostConnected: true,
-      settings: { timer: parseInt(timer) || 7, nominals: nominals || [10,20,30,40,50], falstart: !!falstart },
+      settings: {
+        timer: parseInt(timer) || 7,
+        nominals: nominals || [10,20,30,40,50],
+        wrongAnswerLimit: normalizeWrongAnswerLimit(wrongAnswerLimit),
+        queuedAnswers: !!queuedAnswers,
+        falstart: !!falstart,
+        latencyCompensation: latencyCompensation !== false,
+        timerStartSound: normalizeSound(timerStartSound, "gudok"),
+        buzzerSound: normalizeSound(buzzerSound, "pop"),
+        timerEndSound: normalizeSound(timerEndSound, "ding"),
+        falstartSound: normalizeSound(falstartSound, "error"),
+      },
       topicNames,
       players: [],
       locked: false,
@@ -48,6 +71,8 @@ export class GameManager {
       cellData: {},
       attachments: {},
       timerEnd: null,
+      timerPausedRemaining: null,
+      timerHeldByBuzz: false,
       timerTimeout: null,
       buzzOrder: [],
       falstartBlocked: new Set(),
@@ -156,14 +181,42 @@ export class GameManager {
     return null;
   }
 
-  updateSettings(socketId, { timer, nominals, falstart }) {
+  _hasEligibleBuzzers(room, ti, ni) {
+    const key = `${ti}-${ni}`;
+    const history = room.cellData[key]?.history || [];
+    return room.players.some((player) => (
+      player.connected &&
+      !room.blockedPlayers.has(player.id) &&
+      !history.some(h => h.playerId === player.id && (h.result === "wrong" || h.result === "falstart"))
+    ));
+  }
+
+  updateSettings(socketId, { timer, nominals, falstart, wrongAnswerLimit, queuedAnswers, latencyCompensation, timerStartSound, buzzerSound, timerEndSound, falstartSound }) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;
 
     if (timer !== undefined) room.settings.timer = parseInt(timer) || 7;
+    if (wrongAnswerLimit !== undefined) room.settings.wrongAnswerLimit = normalizeWrongAnswerLimit(wrongAnswerLimit);
+    if (queuedAnswers !== undefined) room.settings.queuedAnswers = !!queuedAnswers;
     if (falstart !== undefined) room.settings.falstart = !!falstart;
+    if (latencyCompensation !== undefined) room.settings.latencyCompensation = !!latencyCompensation;
+    if (timerStartSound !== undefined) room.settings.timerStartSound = normalizeSound(timerStartSound, room.settings.timerStartSound);
+    if (buzzerSound !== undefined) room.settings.buzzerSound = normalizeSound(buzzerSound, room.settings.buzzerSound);
+    if (timerEndSound !== undefined) room.settings.timerEndSound = normalizeSound(timerEndSound, room.settings.timerEndSound);
+    if (falstartSound !== undefined) room.settings.falstartSound = normalizeSound(falstartSound, room.settings.falstartSound);
     if (nominals && Array.isArray(nominals)) room.settings.nominals = nominals;
 
+    return { room };
+  }
+
+  updateHostName(socketId, { hostName }) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+
+    const nextName = String(hostName || "").trim();
+    if (!nextName) return { room };
+
+    room.hostName = nextName;
     return { room };
   }
 
@@ -208,6 +261,8 @@ export class GameManager {
       // Stop timer and clear buzz state when locking
       clearTimeout(room.timerTimeout);
       room.timerEnd = null;
+      room.timerPausedRemaining = null;
+      room.timerHeldByBuzz = false;
       room.timerStarted = false;
       room.buzzOrder = [];
       room.falstartBlocked = new Set();
@@ -220,6 +275,7 @@ export class GameManager {
     if (!room || room.hostSocketId !== socketId) return null;
     if (room.phase !== "playing") return null;
     if (room.cellLocked) return null;
+    if (room.buzzOrder.length > 0) return null;
 
     // Clear "no_answer" from history so cell can be retried
     const key = `${ti}-${ni}`;
@@ -235,15 +291,55 @@ export class GameManager {
 
     const ms = room.settings.timer * 1000;
     room.timerEnd = Date.now() + ms;
+    room.timerPausedRemaining = null;
+    room.timerHeldByBuzz = false;
     room.timerStarted = true;
     clearTimeout(room.timerTimeout);
 
     return { room, timerEnd: room.timerEnd, ti, ni, ms };
   }
 
+  pauseTimer(socketId) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+    if (room.phase !== "playing") return null;
+    if (!room.timerEnd) return null;
+
+    const remainingMs = Math.max(0, room.timerEnd - Date.now());
+    clearTimeout(room.timerTimeout);
+    room.timerEnd = null;
+    room.timerPausedRemaining = remainingMs;
+    room.timerStarted = true;
+
+    return { room, remainingMs };
+  }
+
+  resumeTimer(socketId) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+    if (room.phase !== "playing") return null;
+    if (!room.activeCell) return null;
+    if (!room.timerPausedRemaining) return null;
+    if (room.cellLocked) return null;
+
+    const ms = room.timerPausedRemaining;
+    room.timerEnd = Date.now() + ms;
+    room.timerPausedRemaining = null;
+    room.timerHeldByBuzz = false;
+    room.timerStarted = true;
+    clearTimeout(room.timerTimeout);
+
+    return { room, timerEnd: room.timerEnd, ti: room.activeCell.ti, ni: room.activeCell.ni, ms };
+  }
+
   handleTimerExpiry(room, ti, ni) {
     room.timerEnd = null;
+    room.timerPausedRemaining = null;
+    room.timerHeldByBuzz = false;
     room.timerStarted = false;
+    room.activeCell = { ti, ni };
+    room.currentTopicIdx = ti;
+    room.cellLocked = true;
     const key = `${ti}-${ni}`;
     if (!room.cellData[key]) room.cellData[key] = { history: [] };
     const cell = room.cellData[key];
@@ -251,19 +347,6 @@ export class GameManager {
       cell.history.push({ playerId: null, playerName: null, result: "no_answer", nominal: null, ts: Date.now() });
     }
     room.buzzOrder = [];
-    room.falstartBlocked = new Set();
-
-    // Auto-advance to next open cell
-    const next = this._findNextOpenCell(room, ti, ni);
-    if (next) {
-      room.activeCell = next;
-      if (next.ti !== ti) {
-        room.currentTopicIdx = next.ti;
-        this._ensureTopicScores(room, next.ti);
-      }
-    } else {
-      room.activeCell = null;
-    }
   }
 
   buzz(socketId) {
@@ -273,6 +356,7 @@ export class GameManager {
     if (!player || !player.connected) return null;
 
     if (room.cellLocked) return null;
+    if (room.timerPausedRemaining) return null;
     if (room.blockedPlayers.has(player.id)) return null;
     if (room.falstartBlocked.has(player.id)) return null;
     if (room.buzzOrder.some(b => b.playerId === player.id)) return null;
@@ -281,7 +365,7 @@ export class GameManager {
     if (room.activeCell) {
       const key = `${room.activeCell.ti}-${room.activeCell.ni}`;
       const cell = room.cellData[key];
-      if (cell && cell.history.some(h => h.playerId === player.id && h.result === "wrong")) {
+      if (cell && cell.history.some(h => h.playerId === player.id && (h.result === "wrong" || h.result === "falstart"))) {
         return null;
       }
     }
@@ -291,7 +375,28 @@ export class GameManager {
       // Falstart only applies before timer has ever been started for this cell
       if (!room.timerStarted) {
         if (room.settings.falstart && room.activeCell) {
+          const key = `${room.activeCell.ti}-${room.activeCell.ni}`;
+          if (!room.cellData[key]) room.cellData[key] = { history: [] };
+          const history = room.cellData[key].history;
+          if (!history.some(h => h.playerId === player.id && h.result === "falstart")) {
+            history.push({
+              playerId: player.id,
+              playerName: player.name,
+              result: "falstart",
+              nominal: null,
+              ts: Date.now(),
+            });
+          }
           room.falstartBlocked.add(player.id);
+          if (!this._hasEligibleBuzzers(room, room.activeCell.ti, room.activeCell.ni)) {
+            clearTimeout(room.timerTimeout);
+            room.timerEnd = null;
+            room.timerPausedRemaining = null;
+            room.timerHeldByBuzz = false;
+            room.timerStarted = false;
+            room.cellLocked = true;
+            room.buzzOrder = [];
+          }
           return { room, falstart: true, playerId: player.id };
         }
         // Falstart disabled: allow buzz freely (no timer to stop)
@@ -299,7 +404,12 @@ export class GameManager {
       // Timer was started but stopped by first buzz — allow freely
     }
 
-    const effectiveTime = Date.now() - Math.floor(player.latency / 2);
+    const latencyOffset = room.settings.latencyCompensation === false ? 0 : Math.floor(player.latency / 2);
+    const effectiveTime = Date.now() - latencyOffset;
+    if (room.settings.queuedAnswers === false && room.buzzOrder.length > 0) {
+      const firstBuzzTime = room.buzzOrder[0].effectiveTime;
+      if (effectiveTime > firstBuzzTime + LATE_BUZZ_WINDOW_MS) return null;
+    }
     room.buzzOrder.push({ playerId: player.id, socketId, name: player.name, effectiveTime });
     room.buzzOrder.sort((a, b) => a.effectiveTime - b.effectiveTime);
 
@@ -307,6 +417,8 @@ export class GameManager {
     if (room.timerEnd && room.buzzOrder.length === 1) {
       clearTimeout(room.timerTimeout);
       room.timerEnd = null;
+      room.timerPausedRemaining = null;
+      room.timerHeldByBuzz = true;
     }
 
     return { room };
@@ -342,6 +454,8 @@ export class GameManager {
       room.falstartBlocked = new Set();
       clearTimeout(room.timerTimeout);
       room.timerEnd = null;
+      room.timerPausedRemaining = null;
+      room.timerHeldByBuzz = false;
       room.timerStarted = false;
       // Auto-advance to next open cell (skips already-done cells)
       const next = this._findNextOpenCell(room, ti, ni);
@@ -355,14 +469,51 @@ export class GameManager {
         room.activeCell = null;
       }
     } else {
-      room.buzzOrder = room.buzzOrder.filter(b => b.playerId !== playerId);
-      // If no one left in buzzOrder, auto-advance to next question
-      if (room.buzzOrder.length === 0) {
-        room.falstartBlocked = new Set();
+      const wrongCount = room.cellData[key].history.filter(h => h.result === "wrong").length;
+      if (wrongCount >= room.settings.wrongAnswerLimit) {
         clearTimeout(room.timerTimeout);
         room.timerEnd = null;
+        room.timerPausedRemaining = null;
+        room.timerHeldByBuzz = false;
+        room.timerStarted = false;
+        room.cellLocked = true;
+        room.buzzOrder = [];
+        return { room };
+      }
+
+      if (room.settings.queuedAnswers === false) {
+        room.buzzOrder = [];
+        clearTimeout(room.timerTimeout);
+        if (this._hasEligibleBuzzers(room, ti, ni)) {
+          const ms = room.settings.timer * 1000;
+          room.timerEnd = Date.now() + ms;
+          room.timerPausedRemaining = null;
+          room.timerHeldByBuzz = false;
+          room.timerStarted = true;
+          return { room, timerEnd: room.timerEnd, ti, ni, ms };
+        }
+      } else {
+        room.buzzOrder = room.buzzOrder.filter(b => b.playerId !== playerId);
+      }
+
+      // If no one left in buzzOrder, auto-advance to next question
+      if (room.buzzOrder.length === 0) {
+        clearTimeout(room.timerTimeout);
+        if (room.timerHeldByBuzz && this._hasEligibleBuzzers(room, ti, ni)) {
+          const ms = room.settings.timer * 1000;
+          room.timerEnd = Date.now() + ms;
+          room.timerPausedRemaining = null;
+          room.timerHeldByBuzz = false;
+          room.timerStarted = true;
+          return { room, timerEnd: room.timerEnd, ti, ni, ms };
+        }
+
+        room.timerEnd = null;
+        room.timerPausedRemaining = null;
+        room.timerHeldByBuzz = false;
         room.timerStarted = false;
         const next = this._findNextOpenCell(room, ti, ni);
+        room.falstartBlocked = new Set();
         if (next) {
           room.activeCell = next;
           if (next.ti !== ti) {
@@ -388,9 +539,12 @@ export class GameManager {
 
     clearTimeout(room.timerTimeout);
     room.timerEnd = null;
+    room.timerPausedRemaining = null;
+    room.timerHeldByBuzz = false;
     room.timerStarted = false;
     room.buzzOrder = [];
     room.falstartBlocked = new Set();
+    room.cellLocked = false;
 
     // Auto-advance to next open cell (skips already-done cells)
     const next = this._findNextOpenCell(room, ti, ni);
@@ -460,6 +614,29 @@ export class GameManager {
     room.currentTopicIdx = ti;
     clearTimeout(room.timerTimeout);
     room.timerEnd = null;
+    room.timerPausedRemaining = null;
+    room.timerHeldByBuzz = false;
+    room.timerStarted = false;
+    room.buzzOrder = [];
+    room.falstartBlocked = new Set();
+    room.cellLocked = false;
+
+    return { room };
+  }
+
+  resetAllScores(socketId) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+
+    clearTimeout(room.timerTimeout);
+    room.topicScores = [];
+    room.topicNominals = [];
+    room.cellData = {};
+    room.currentTopicIdx = 0;
+    room.activeCell = room.phase === "playing" && room.topicNames.length > 0 ? { ti: 0, ni: 0 } : null;
+    room.timerEnd = null;
+    room.timerPausedRemaining = null;
+    room.timerHeldByBuzz = false;
     room.timerStarted = false;
     room.buzzOrder = [];
     room.falstartBlocked = new Set();
@@ -528,6 +705,8 @@ export class GameManager {
     clearTimeout(room.timerTimeout);
     room.phase = "finished";
     room.timerEnd = null;
+    room.timerPausedRemaining = null;
+    room.timerHeldByBuzz = false;
     room.activeCell = null;
 
     const result = {
@@ -592,6 +771,8 @@ export class GameManager {
       activeCell: room.activeCell,
       cellData: room.cellData,
       timerEnd: room.timerEnd,
+      timerPausedRemaining: room.timerPausedRemaining || null,
+      timerHeldByBuzz: room.timerHeldByBuzz || false,
       timerStarted: room.timerStarted || false,
       buzzOrder: room.buzzOrder.map(b => ({ playerId: b.playerId, socketId: b.socketId, name: b.name, effectiveTime: b.effectiveTime })),
       falstartBlocked: [...room.falstartBlocked],

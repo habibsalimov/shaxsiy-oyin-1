@@ -24,8 +24,11 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   const currentTopicIdx = gameState?.currentTopicIdx || 0;
   const activeCell = gameState?.activeCell;
   const timerEnd = gameState?.timerEnd;
+  const timerPausedRemaining = gameState?.timerPausedRemaining ?? null;
   const buzzOrder = gameState?.buzzOrder || [];
+  const queuedAnswers = gameState?.settings?.queuedAnswers === true;
   const roomCode = gameState?.code || "";
+  const hostName = gameState?.hostName || "";
   const hostConnected = gameState?.hostConnected !== false;
 
   const currentTopicName = topicNames[currentTopicIdx] || `${currentTopicIdx + 1}-mavzu`;
@@ -36,6 +39,9 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   const falstartEnabled = gameState?.settings?.falstart;
   const falstartBlocked = gameState?.falstartBlocked || [];
   const isFalstartBlocked = falstartBlocked.includes(myPlayerId);
+  const falstartPlayers = falstartBlocked
+    .map(playerId => players.find(p => p.id === playerId))
+    .filter(Boolean);
 
   // ─── Check if already answered wrong on current cell ────────────────────
   const cellData = gameState?.cellData || {};
@@ -56,12 +62,14 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   const phase = !activeCell ? "waiting"
     : isBlocked ? "blocked"
       : cellLocked ? "locked"
-        : isFalstartBlocked ? "falstart"
-          : alreadyWrong ? "answered-wrong"
-            : timerEnd ? "active"
-              : myBuzzed ? "buzzed"
-                : buzzOrder.length > 0 ? "active"
-                  : "pre-timer";
+        : timerPausedRemaining !== null ? "paused"
+          : isFalstartBlocked ? "falstart"
+            : alreadyWrong ? "answered-wrong"
+              : timerEnd ? "active"
+                : myBuzzed ? "buzzed"
+                  : buzzOrder.length > 0 ? (queuedAnswers ? "active" : "answering")
+                    : "pre-timer";
+  const preTimerFalstartWarning = phase === "pre-timer" && falstartEnabled;
 
   // ─── Compute totals (memoized) ──────────────────────────────────────────
   const grandTotals = useMemo(() =>
@@ -124,6 +132,11 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, letterSpacing: "0.1em", color: "var(--accent)" }}>{`SHAXSIY O${T}YIN`}</span>
           <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 12, color: "var(--text-secondary)" }}>{roomCode}</span>
+          {hostName && (
+            <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700 }}>
+              Boshlovchi: <span style={{ color: "var(--text)" }}>{hostName}</span>
+            </span>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, color: myTotal >= 0 ? "var(--accent)" : "var(--red)" }}>{myTotal > 0 ? "+" : ""}{myTotal}</span>
@@ -167,9 +180,9 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
           );
         })()}
 
-        {phase === "active" && (
+        {(phase === "active" || phase === "paused") && (
           <div style={{ maxWidth: 260, margin: "0 auto 12px", width: "100%" }}>
-            <TimerDisplay timerEnd={timerEnd} timerSec={gameState?.settings?.timer || 7} />
+            <TimerDisplay timerEnd={timerEnd} timerSec={gameState?.settings?.timer || 7} pausedRemainingMs={timerPausedRemaining} />
           </div>
         )}
 
@@ -189,6 +202,14 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
             <div style={{ fontSize: 12, color: "var(--red)", marginTop: 4 }}>Bu savolga javob bera olmaysiz</div>
           </div>
         )}
+        {phase !== "falstart" && falstartPlayers.length > 0 && (
+          <div style={{ background: "rgba(243,156,18,0.08)", border: "1px solid rgba(243,156,18,0.35)", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: "var(--orange)", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>Falstart</div>
+            <div style={{ fontSize: 12, color: "var(--orange)" }}>
+              {falstartPlayers.map(p => p.name).join(", ")}
+            </div>
+          </div>
+        )}
         {phase === "answered-wrong" && (
           <div style={{ background: "var(--red-bg)", border: "1px solid var(--red)", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
             <span style={{ fontSize: 13, color: "var(--red)" }}>{"\u2717"} Siz bu savolga javob berdingiz</span>
@@ -206,8 +227,8 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
           </div>
         )}
         {phase === "pre-timer" && (
-          <div style={{ textAlign: "center", color: "var(--accent)", fontSize: 13, marginBottom: 12 }}>
-            {"\u23F3"} Taymer hali boshlanmagan {"\xb7"} Bosishingiz mumkin
+          <div style={{ textAlign: "center", color: preTimerFalstartWarning ? "var(--red)" : "var(--accent)", fontSize: 13, marginBottom: 12 }}>
+            {"\u23F3"} Taymer hali boshlanmagan {"\xb7"} {preTimerFalstartWarning ? "Bosmang" : "Bosishingiz mumkin"}
           </div>
         )}
         {phase === "waiting" && !activeCell && (
@@ -226,19 +247,19 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
               disabled={phase !== "active" && phase !== "pre-timer"}
               style={{
                 width: 170, height: 170, borderRadius: "50%",
-                border: `5px solid ${phase === "blocked" ? "var(--red)" : phase === "locked" ? "var(--orange)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red)" : phase === "buzzed" && iAmFirst ? "var(--green)" : myBuzzed ? "var(--border-input)" : "var(--accent)"}`,
-                background: phase === "blocked" ? "var(--red-bg-strong)" : phase === "locked" ? "var(--orange-bg)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red-bg-strong)" : phase === "buzzed" && iAmFirst ? "var(--green)" : pressing ? "var(--accent)" : "var(--bg-input)",
-                color: phase === "blocked" ? "var(--red)" : phase === "locked" ? "var(--orange)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red)" : (pressing || (phase === "buzzed" && iAmFirst)) ? "var(--bg)" : myBuzzed ? "var(--border-input)" : "var(--accent)",
+                border: `5px solid ${phase === "blocked" ? "var(--red)" : (phase === "locked" || phase === "paused") ? "var(--orange)" : (phase === "falstart" || phase === "answered-wrong" || preTimerFalstartWarning) ? "var(--red)" : phase === "answering" ? "var(--border-input)" : phase === "buzzed" && iAmFirst ? "var(--green)" : myBuzzed ? "var(--border-input)" : "var(--accent)"}`,
+                background: phase === "blocked" ? "var(--red-bg-strong)" : (phase === "locked" || phase === "paused") ? "var(--orange-bg)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red-bg-strong)" : phase === "answering" ? "var(--bg-card)" : phase === "buzzed" && iAmFirst ? "var(--green)" : pressing ? "var(--accent)" : "var(--bg-input)",
+                color: phase === "blocked" ? "var(--red)" : (phase === "locked" || phase === "paused") ? "var(--orange)" : (phase === "falstart" || phase === "answered-wrong" || preTimerFalstartWarning) ? "var(--red)" : phase === "answering" ? "var(--text-muted)" : (pressing || (phase === "buzzed" && iAmFirst)) ? "var(--bg)" : myBuzzed ? "var(--border-input)" : "var(--accent)",
                 fontFamily: "'Anton', sans-serif", fontSize: 30, letterSpacing: "0.08em",
                 cursor: (phase === "active" || phase === "pre-timer") && !myBuzzed ? "pointer" : "default",
                 transition: "all 0.1s", transform: pressing ? "scale(0.92)" : "scale(1)",
-                boxShadow: phase === "active" && !myBuzzed ? "0 0 40px var(--accent-glow)" : phase === "pre-timer" ? "0 0 30px var(--accent-glow)" : phase === "buzzed" && iAmFirst ? "0 0 50px rgba(46,204,113,0.5)" : "none",
+                boxShadow: phase === "active" && !myBuzzed ? "0 0 40px var(--accent-glow)" : preTimerFalstartWarning ? "0 0 30px rgba(230,57,70,0.18)" : phase === "pre-timer" ? "0 0 30px var(--accent-glow)" : phase === "buzzed" && iAmFirst ? "0 0 50px rgba(46,204,113,0.5)" : "none",
                 userSelect: "none",
               }}>
-              {phase === "blocked" ? "\uD83D\uDEAB" : phase === "locked" ? "\uD83D\uDD12" : phase === "falstart" ? "\u26A1" : phase === "answered-wrong" ? "\u2717" : phase === "buzzed" && iAmFirst ? "\uD83C\uDFA4" : myBuzzed ? "\u2713" : "JAVOB"}
+              {phase === "blocked" ? "\uD83D\uDEAB" : phase === "locked" ? "\uD83D\uDD12" : phase === "paused" ? "\u23F8" : phase === "falstart" ? "\u26A1" : phase === "answered-wrong" ? "\u2717" : phase === "answering" ? "\u23F3" : phase === "buzzed" && iAmFirst ? "\uD83C\uDFA4" : myBuzzed ? "\u2713" : "JAVOB"}
             </button>
-            <div style={{ marginTop: 10, fontSize: 11, color: phase === "blocked" ? "var(--red)" : phase === "locked" ? "var(--orange)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red)" : "var(--text-secondary)" }}>
-              {phase === "blocked" ? "Blokdasiz" : phase === "locked" ? "Savol bloklangan" : phase === "falstart" ? "Falstart! Bu savolda javob bera olmaysiz" : phase === "answered-wrong" ? "Siz bu savolga javob berdingiz" : phase === "active" ? "Bosing yoki SPACE" : phase === "pre-timer" ? "Taymer kutilmoqda \xb7 Bosing yoki SPACE" : myBuzzed ? "Siz bosdingiz!" : phase === "answering" ? "Javob kutilmoqda..." : "Kutilmoqda..."}
+            <div style={{ marginTop: 10, fontSize: 11, color: phase === "blocked" ? "var(--red)" : (phase === "locked" || phase === "paused") ? "var(--orange)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red)" : "var(--text-secondary)" }}>
+              {phase === "blocked" ? "Blokdasiz" : phase === "locked" ? "Savol bloklangan" : phase === "paused" ? "Taymer pauzada" : phase === "falstart" ? "Falstart! Bu savolda javob bera olmaysiz" : phase === "answered-wrong" ? "Siz bu savolga javob berdingiz" : phase === "active" ? "Bosing yoki SPACE" : phase === "pre-timer" ? (preTimerFalstartWarning ? "Falstart yoqilgan · Taymerni kuting" : "Taymer kutilmoqda · Bosing yoki SPACE") : myBuzzed ? "Siz bosdingiz!" : phase === "answering" ? "Javob kutilmoqda..." : "Kutilmoqda..."}
             </div>
           </div>
         </div>

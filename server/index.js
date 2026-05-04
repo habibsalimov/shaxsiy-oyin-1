@@ -44,6 +44,15 @@ function broadcastState(room) {
   io.to(room.code).emit("game-state", state);
 }
 
+function scheduleTimerExpiry(result) {
+  clearTimeout(result.room.timerTimeout);
+  result.room.timerTimeout = setTimeout(() => {
+    gm.handleTimerExpiry(result.room, result.ti, result.ni);
+    io.to(result.room.code).emit("timer-expired", { ti: result.ti, ni: result.ni });
+    broadcastState(result.room);
+  }, result.ms);
+}
+
 // Latency ping
 setInterval(() => {
   io.sockets.sockets.forEach((socket) => {
@@ -104,14 +113,24 @@ io.on("connection", (socket) => {
       ti: result.ti, ni: result.ni, timerEnd: result.timerEnd
     });
 
-    // Set up server-side timer expiry
-    clearTimeout(result.room.timerTimeout);
-    result.room.timerTimeout = setTimeout(() => {
-      gm.handleTimerExpiry(result.room, result.ti, result.ni);
-      io.to(result.room.code).emit("timer-expired", { ti: result.ti, ni: result.ni });
-      broadcastState(result.room);
-    }, result.ms);
+    scheduleTimerExpiry(result);
 
+    broadcastState(result.room);
+  });
+
+  socket.on("pause-timer", () => {
+    const result = gm.pauseTimer(socket.id);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
+  socket.on("resume-timer", () => {
+    const result = gm.resumeTimer(socket.id);
+    if (!result) return;
+    io.to(result.room.code).emit("timer-started", {
+      ti: result.ti, ni: result.ni, timerEnd: result.timerEnd
+    });
+    scheduleTimerExpiry(result);
     broadcastState(result.room);
   });
 
@@ -130,6 +149,12 @@ io.on("connection", (socket) => {
   socket.on("judge", (data) => {
     const result = gm.judge(socket.id, data);
     if (!result) return;
+    if (result.timerEnd) {
+      io.to(result.room.code).emit("timer-started", {
+        ti: result.ti, ni: result.ni, timerEnd: result.timerEnd
+      });
+      scheduleTimerExpiry(result);
+    }
     broadcastState(result.room);
   });
 
@@ -171,8 +196,20 @@ io.on("connection", (socket) => {
     broadcastState(result.room);
   });
 
+  socket.on("reset-all-scores", () => {
+    const result = gm.resetAllScores(socket.id);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
   socket.on("update-settings", (data) => {
     const result = gm.updateSettings(socket.id, data);
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
+  socket.on("update-host-name", (data) => {
+    const result = gm.updateHostName(socket.id, data || {});
     if (!result) return;
     broadcastState(result.room);
   });

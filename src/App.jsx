@@ -36,6 +36,7 @@ import { LandingScreen } from './components/LandingScreen.jsx';
 import { HostGameScreen } from './components/HostGameScreen.jsx';
 import { PlayerGameScreen } from './components/PlayerGameScreen.jsx';
 import { ResultsScreen } from './components/ResultsScreen.jsx';
+import { playGameSound } from './utils/sounds.js';
 
 const IS_DEV = false;
 
@@ -153,6 +154,23 @@ export default function App() {
       setAttachments(allAttachments);
     });
 
+    const unsub8 = onEvent("buzz-update", ({ buzzOrder }) => {
+      if (!buzzOrder || buzzOrder.length === 0) return;
+      playGameSound(gameStateRef.current?.settings?.buzzerSound || "pop");
+    });
+
+    const unsub11 = onEvent("timer-started", () => {
+      playGameSound(gameStateRef.current?.settings?.timerStartSound || "gudok");
+    });
+
+    const unsub9 = onEvent("timer-expired", () => {
+      playGameSound(gameStateRef.current?.settings?.timerEndSound || "ding");
+    });
+
+    const unsub10 = onEvent("falstart-caught", () => {
+      playGameSound(gameStateRef.current?.settings?.falstartSound || "error");
+    });
+
     const unsub4 = onEvent("error", ({ message }) => {
       console.error("Server error:", message);
       setErrorMsg(message);
@@ -186,7 +204,7 @@ export default function App() {
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
-      unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); unsub7();
+      unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); unsub7(); unsub8(); unsub9(); unsub10(); unsub11();
     };
   }, []);
 
