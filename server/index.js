@@ -183,6 +183,12 @@ io.on("connection", (socket) => {
     broadcastState(result.room);
   });
 
+  socket.on("rename-topic", (data) => {
+    const result = gm.renameTopic(socket.id, data || {});
+    if (!result) return;
+    broadcastState(result.room);
+  });
+
   socket.on("lock-room", () => {
     const result = gm.lockRoom(socket.id);
     if (!result) return;

@@ -117,3 +117,12 @@ test("resetting a cell clears its play state and unlocks it for reuse", () => {
   assert.deepEqual([...room.falstartBlocked], []);
   assert.equal(room.cellLocked, false);
 });
+
+test("host can rename an existing topic", () => {
+  const { gm, room } = createPlayingRoom();
+
+  const result = gm.renameTopic("host-socket", { ti: 0, name: "Tarix" });
+
+  assert.equal(result.room.topicNames[0], "Tarix");
+  assert.deepEqual(gm.getGameState(room).topicNames, ["Tarix"]);
+});

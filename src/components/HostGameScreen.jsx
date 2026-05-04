@@ -125,6 +125,14 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     });
   };
 
+  const saveTopicName = (ti) => {
+    const name = editValue.trim();
+    if (name && name !== topicNames[ti]) {
+      emitEvent("rename-topic", { ti, name });
+    }
+    setEditingTopic(null);
+  };
+
   // ─── Socket-emitting actions ─────────────────────────────────────────────
   const startTimer = () => {
     if (!activeCell) return;
@@ -443,17 +451,17 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                     borderBottom: "1px solid var(--border)", cursor: "pointer", userSelect: "none",
                   }} onClick={() => toggleTopic(ti)}>
                     <span style={{ fontSize: 11, color: "var(--text-muted)", flexShrink: 0, transition: "transform 0.2s", display: "inline-block", transform: expandedTopics.has(ti) ? "rotate(90deg)" : "rotate(0deg)" }}>{"\u25B6"}</span>
-                    {editingTopic === ti ? (
-                      <input autoFocus value={editValue}
-                        onChange={e => setEditValue(e.target.value)}
-                        onClick={e => e.stopPropagation()}
-                        onKeyDown={e => {
-                          if (e.key === "Enter") { setEditingTopic(null); }
-                          if (e.key === "Escape") setEditingTopic(null);
-                        }}
-                        onBlur={() => { setEditingTopic(null); }}
-                        style={{ background: "var(--bg-input)", border: "1px solid var(--accent)", color: "var(--text)", fontFamily: "inherit", fontSize: 14, fontWeight: 700, borderRadius: 3, padding: "4px 8px", outline: "none", flex: 1 }}
-                      />
+	                    {editingTopic === ti ? (
+	                      <input autoFocus value={editValue}
+	                        onChange={e => setEditValue(e.target.value)}
+	                        onClick={e => e.stopPropagation()}
+	                        onKeyDown={e => {
+	                          if (e.key === "Enter") { saveTopicName(ti); }
+	                          if (e.key === "Escape") setEditingTopic(null);
+	                        }}
+	                        onBlur={() => { saveTopicName(ti); }}
+	                        style={{ background: "var(--bg-input)", border: "1px solid var(--accent)", color: "var(--text)", fontFamily: "inherit", fontSize: 14, fontWeight: 700, borderRadius: 3, padding: "4px 8px", outline: "none", flex: 1 }}
+	                      />
                     ) : (
                       <span onClick={e => { e.stopPropagation(); setEditingTopic(ti); setEditValue(topicName); }}
                         style={{ fontFamily: "'Anton', sans-serif", fontSize: 14, letterSpacing: "0.04em", color: isTopicActive ? "var(--accent)" : "var(--text)", flex: 1 }}>

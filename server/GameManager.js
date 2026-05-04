@@ -476,6 +476,20 @@ export class GameManager {
     return { room };
   }
 
+  renameTopic(socketId, { ti, name }) {
+    const room = this.getRoomForSocket(socketId);
+    if (!room || room.hostSocketId !== socketId) return null;
+
+    const idx = Number(ti);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= room.topicNames.length) return null;
+
+    const nextName = String(name || "").trim();
+    if (!nextName) return { room };
+
+    room.topicNames[idx] = nextName;
+    return { room };
+  }
+
   lockRoom(socketId) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;
