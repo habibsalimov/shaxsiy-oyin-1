@@ -463,6 +463,7 @@ export class GameManager {
     room.timerStarted = false;
     room.buzzOrder = [];
     room.falstartBlocked = new Set();
+    room.cellLocked = false;
 
     return { room };
   }

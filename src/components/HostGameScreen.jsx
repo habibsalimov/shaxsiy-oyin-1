@@ -159,6 +159,13 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     emitEvent("lock-room");
   };
 
+  const resetActiveCell = () => {
+    if (!activeCell) return;
+    emitEvent("reset-cell", { ti: activeCell.ti, ni: activeCell.ni });
+    setExpandedCell(null);
+    setConfirmReset(null);
+  };
+
   const copyCode = () => {
     if (roomCode) {
       navigator.clipboard?.writeText(roomCode).catch(() => {});
@@ -553,6 +560,12 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                     borderRadius: 4, padding: "6px 12px", cursor: "pointer",
                                     color: isLocked ? "var(--orange)" : "var(--text-secondary)", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
                                   }}>{isLocked ? "\uD83D\uDD12 Bloklangan" : "\uD83D\uDD13 Qulf"}</button>
+                                  <button onClick={resetActiveCell} style={{
+                                    background: "var(--red-bg-strong)",
+                                    border: "1px solid var(--red)",
+                                    borderRadius: 4, padding: "6px 12px", cursor: "pointer",
+                                    color: "var(--red)", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+                                  }} title="Faol savolni qayta boshlash">{"\u21BB"} Reset</button>
                                   <div style={{ flex: 1 }} />
                                 </div>
 

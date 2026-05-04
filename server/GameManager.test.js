@@ -92,3 +92,28 @@ test("player management uses stable player IDs instead of socket IDs", () => {
   assert.deepEqual(room.players, []);
   assert.equal(gm.getRoomForSocket("player-socket-1"), null);
 });
+
+test("resetting a cell clears its play state and unlocks it for reuse", () => {
+  const { gm, room } = createPlayingRoom();
+  const player = room.players[0];
+
+  gm.correctScore("host-socket", { playerId: player.id, ti: 0, ni: 0 });
+  room.cellData["0-0"] = {
+    history: [{ playerId: player.id, playerName: player.name, result: "correct", nominal: 10, ts: Date.now() }],
+  };
+  room.buzzOrder = [{ playerId: player.id, socketId: player.socketId, name: player.name, effectiveTime: Date.now() }];
+  room.falstartBlocked.add(player.id);
+  gm.lockCell("host-socket");
+  assert.equal(room.cellLocked, true);
+
+  gm.resetCell("host-socket", { ti: 0, ni: 0 });
+
+  assert.deepEqual(room.cellData["0-0"].history, []);
+  assert.equal(room.topicScores[0][player.id][10], null);
+  assert.deepEqual(room.activeCell, { ti: 0, ni: 0 });
+  assert.equal(room.timerEnd, null);
+  assert.equal(room.timerStarted, false);
+  assert.deepEqual(room.buzzOrder, []);
+  assert.deepEqual([...room.falstartBlocked], []);
+  assert.equal(room.cellLocked, false);
+});
