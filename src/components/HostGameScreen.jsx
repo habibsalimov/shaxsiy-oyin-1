@@ -554,18 +554,18 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                   <label style={{ background: "var(--bg-input)", border: "1px solid var(--border-strong)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "var(--text-secondary)", fontSize: 14 }}>
                                     {"\uD83D\uDDBC\uFE0F"}<input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleAttachImage(ti, ni, e)} />
                                   </label>
+                                  <button onClick={resetActiveCell} style={{
+                                    background: "var(--red-bg-strong)",
+                                    border: "1px solid var(--red)",
+                                    borderRadius: 4, padding: "6px 10px", cursor: "pointer",
+                                    color: "var(--red)", fontSize: 14, fontWeight: 700, fontFamily: "inherit",
+                                  }} title="Faol savolni qayta boshlash">{"\u21BB"}</button>
                                   <button onClick={() => emitEvent("lock-cell")} style={{
                                     background: isLocked ? "rgba(243,156,18,0.15)" : "var(--bg-input)",
                                     border: `1px solid ${isLocked ? "var(--orange)" : "var(--border-strong)"}`,
                                     borderRadius: 4, padding: "6px 12px", cursor: "pointer",
                                     color: isLocked ? "var(--orange)" : "var(--text-secondary)", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
                                   }}>{isLocked ? "\uD83D\uDD12 Bloklangan" : "\uD83D\uDD13 Qulf"}</button>
-                                  <button onClick={resetActiveCell} style={{
-                                    background: "var(--red-bg-strong)",
-                                    border: "1px solid var(--red)",
-                                    borderRadius: 4, padding: "6px 12px", cursor: "pointer",
-                                    color: "var(--red)", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
-                                  }} title="Faol savolni qayta boshlash">{"\u21BB"} Reset</button>
                                   <div style={{ flex: 1 }} />
                                 </div>
 
