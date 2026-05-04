@@ -11,7 +11,8 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   const [editingTopic, setEditingTopic] = useState(null);
   const [editValue, setEditValue]     = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [copied, setCopied]           = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [collapsedScores, setCollapsedScores] = useState(new Set());
   const [expandedTopics, setExpandedTopics] = useState(() => new Set([0]));
   const [attachMode, setAttachMode]   = useState(null);
@@ -166,12 +167,43 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     setConfirmReset(null);
   };
 
-  const copyCode = () => {
-    if (roomCode) {
-      navigator.clipboard?.writeText(roomCode).catch(() => {});
+  const copyText = async (text) => {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch { }
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-1000px";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+
+    try {
+      return document.execCommand("copy");
+    } catch {
+      return false;
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  };
+
+  const copyCode = async () => {
+    if (!roomCode) return;
+
+    const didCopy = await copyText(roomCode);
+    setCopied(didCopy);
+    setCopyError(!didCopy);
+    setTimeout(() => {
+      setCopied(false);
+      setCopyError(false);
+    }, 2000);
   };
 
   // ─── Attachment handling (synced via server) ─────────────────────────────
@@ -342,7 +374,9 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
               <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 52, letterSpacing: "0.24em", color: "var(--accent)", cursor: "pointer" }} onClick={copyCode}>
                 {roomCode || "..."}
               </div>
-              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 6 }}>Bosib nusxalash</div>
+              <div style={{ fontSize: 11, color: copyError ? "var(--red)" : copied ? "var(--green)" : "var(--text-secondary)", marginTop: 6 }}>
+                {copyError ? "Nusxalab bo\u2018lmadi" : copied ? "Nusxalandi" : "Bosib nusxalash"}
+              </div>
             </div>
             <Label>ULANGANLAR</Label>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
