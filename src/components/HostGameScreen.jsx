@@ -5,6 +5,7 @@ import { emitEvent } from '../socket.js';
 import { Btn, Badge, Card, Label, Input, TimerDisplay } from './ui/index.js';
 import { ScoreBoard } from './ScoreBoard.jsx';
 import { SettingsPanel } from './SettingsPanel.jsx';
+import { ThemeToggle } from '../theme.jsx';
 
 export function HostGameScreen({ gameState, roomCode, attachments: attachmentsProp, onFinish }) {
   // ─── Local UI-only state ───────────────────────────────────────────────────
@@ -273,7 +274,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "10px 20px", borderBottom: "1px solid var(--border)",
-        background: "rgba(17,24,39,0.97)", backdropFilter: "blur(8px)",
+        background: "var(--header-bg)", backdropFilter: "blur(8px)",
         flexShrink: 0, zIndex: 90,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -302,6 +303,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
             borderRadius: 4, padding: "7px 10px", cursor: "pointer",
             color: settingsOpen ? "var(--accent)" : "var(--text-secondary)", fontSize: 16, lineHeight: 1, transition: "all 0.15s",
           }}>{"\u2699"}</button>
+          <ThemeToggle />
           <Btn size="sm" variant="danger" onClick={onFinish}>Tugatish</Btn>
         </div>
       </div>

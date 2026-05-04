@@ -4,6 +4,7 @@ import { getTotal } from '../utils/scoring.js';
 import { getSocketId, emitEvent } from '../socket.js';
 import { Badge, TimerDisplay } from './ui/index.js';
 import { ScoreBoard } from './ScoreBoard.jsx';
+import { ThemeToggle } from '../theme.jsx';
 
 export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   const [pressing, setPressing] = useState(false);
@@ -128,6 +129,7 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
           <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, color: myTotal >= 0 ? "var(--accent)" : "var(--red)" }}>{myTotal > 0 ? "+" : ""}{myTotal}</span>
           <span style={{ fontSize: 10, color: "var(--text-muted)" }}>#{myRank || "-"}</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--bg-input)", borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 600 }}>{myPlayer?.name || "..."}</span>
+          <ThemeToggle />
         </div>
       </div>
 

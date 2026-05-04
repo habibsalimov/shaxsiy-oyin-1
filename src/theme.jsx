@@ -2,6 +2,11 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 // ─── Theme Definitions ─────────────────────────────────────────────────────
 const themes = {
+    system: {
+        id: 'system',
+        label: 'Tizim',
+        icon: '\u25D0',
+    },
     light: {
         id: 'light',
         label: 'Yorug\u2018',
@@ -81,31 +86,53 @@ const themes = {
 };
 
 const THEME_KEY = 'shaxsiy-oyin-theme';
+const THEME_ORDER = ['dark', 'light', 'system'];
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
     const [themeId, setThemeId] = useState(() => {
-        try { return localStorage.getItem(THEME_KEY) || 'dark'; }
+        try {
+            const savedTheme = localStorage.getItem(THEME_KEY);
+            return THEME_ORDER.includes(savedTheme) ? savedTheme : 'dark';
+        }
         catch { return 'dark'; }
+    });
+    const [systemThemeId, setSystemThemeId] = useState(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return 'dark';
+        return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     });
 
     const theme = themes[themeId] || themes.dark;
+    const resolvedTheme = themeId === 'system' ? themes[systemThemeId] : theme;
 
     useEffect(() => {
         try { localStorage.setItem(THEME_KEY, themeId); } catch { }
         const root = document.documentElement;
-        for (const [prop, value] of Object.entries(theme.colors)) {
+        for (const [prop, value] of Object.entries(resolvedTheme.colors)) {
             root.style.setProperty(prop, value);
         }
-    }, [themeId, theme]);
+    }, [themeId, resolvedTheme]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return;
+        const media = window.matchMedia('(prefers-color-scheme: light)');
+        const updateSystemTheme = () => setSystemThemeId(media.matches ? 'light' : 'dark');
+
+        updateSystemTheme();
+        media.addEventListener?.('change', updateSystemTheme);
+        return () => media.removeEventListener?.('change', updateSystemTheme);
+    }, []);
 
     const cycleTheme = () => {
-        setThemeId(prev => prev === 'dark' ? 'light' : 'dark');
+        setThemeId(prev => {
+            const currentIdx = THEME_ORDER.indexOf(prev);
+            return THEME_ORDER[(currentIdx + 1) % THEME_ORDER.length];
+        });
     };
 
     return (
-        <ThemeContext.Provider value={{ theme, themeId, setThemeId, cycleTheme, themes }}>
+        <ThemeContext.Provider value={{ theme, themeId, resolvedTheme, systemThemeId, setThemeId, cycleTheme, themes }}>
             {children}
         </ThemeContext.Provider>
     );

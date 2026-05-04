@@ -36,7 +36,6 @@ import { LandingScreen } from './components/LandingScreen.jsx';
 import { HostGameScreen } from './components/HostGameScreen.jsx';
 import { PlayerGameScreen } from './components/PlayerGameScreen.jsx';
 import { ResultsScreen } from './components/ResultsScreen.jsx';
-import { ThemeToggle } from './theme.jsx';
 
 const IS_DEV = false;
 
