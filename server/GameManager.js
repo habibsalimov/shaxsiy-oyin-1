@@ -14,6 +14,10 @@ function generateCode(existing) {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
+function generatePlayerId() {
+  return Math.random().toString(36).slice(2, 10).toUpperCase();
+}
+
 export class GameManager {
   constructor() {
     this.rooms = new Map();
@@ -83,8 +87,9 @@ export class GameManager {
       return { room, reconnected: true };
     }
 
-    const player = { socketId, name: playerName, connected: true, latency: 0 };
+    const player = { id: generatePlayerId(), socketId, name: playerName, connected: true, latency: 0 };
     room.players.push(player);
+    this.ensurePlayerScoreEntries(room, player);
     this.socketToRoom.set(socketId, code);
     return { room };
   }
@@ -99,6 +104,21 @@ export class GameManager {
     return room && room.hostSocketId === socketId;
   }
 
+  getPlayerBySocket(room, socketId) {
+    return room.players.find((p) => p.socketId === socketId) || null;
+  }
+
+  ensurePlayerScoreEntries(room, player) {
+    room.topicScores.forEach((topicScore, idx) => {
+      if (topicScore[player.id]) return;
+      const noms = this._getTopicNominals(room, idx);
+      topicScore[player.id] = {};
+      noms.forEach((n) => {
+        topicScore[player.id][n] = null;
+      });
+    });
+  }
+
   _ensureTopicScores(room, ti) {
     while (room.topicScores.length <= ti) {
       const idx = room.topicScores.length;
@@ -109,8 +129,8 @@ export class GameManager {
       const noms = room.topicNominals[idx];
       const s = {};
       room.players.forEach(p => {
-        s[p.socketId] = {};
-        noms.forEach(n => { s[p.socketId][n] = null; });
+        s[p.id] = {};
+        noms.forEach(n => { s[p.id][n] = null; });
       });
       room.topicScores.push(s);
     }
@@ -249,30 +269,30 @@ export class GameManager {
   buzz(socketId) {
     const room = this.getRoomForSocket(socketId);
     if (!room) return null;
+    const player = this.getPlayerBySocket(room, socketId);
+    if (!player || !player.connected) return null;
+
     if (room.cellLocked) return null;
-    if (room.blockedPlayers.has(socketId)) return null;
-    if (room.falstartBlocked.has(socketId)) return null;
-    if (room.buzzOrder.some(b => b.socketId === socketId)) return null;
+    if (room.blockedPlayers.has(player.id)) return null;
+    if (room.falstartBlocked.has(player.id)) return null;
+    if (room.buzzOrder.some(b => b.playerId === player.id)) return null;
 
     // Block re-buzz if player already answered wrong on this cell
     if (room.activeCell) {
       const key = `${room.activeCell.ti}-${room.activeCell.ni}`;
       const cell = room.cellData[key];
-      if (cell && cell.history.some(h => h.playerId === socketId && h.result === "wrong")) {
+      if (cell && cell.history.some(h => h.playerId === player.id && h.result === "wrong")) {
         return null;
       }
     }
-
-    const player = room.players.find(p => p.socketId === socketId);
-    if (!player || !player.connected) return null;
 
     // Timer not running yet
     if (!room.timerEnd) {
       // Falstart only applies before timer has ever been started for this cell
       if (!room.timerStarted) {
         if (room.settings.falstart && room.activeCell) {
-          room.falstartBlocked.add(socketId);
-          return { room, falstart: true };
+          room.falstartBlocked.add(player.id);
+          return { room, falstart: true, playerId: player.id };
         }
         // Falstart disabled: allow buzz freely (no timer to stop)
       }
@@ -280,7 +300,7 @@ export class GameManager {
     }
 
     const effectiveTime = Date.now() - Math.floor(player.latency / 2);
-    room.buzzOrder.push({ socketId, name: player.name, effectiveTime });
+    room.buzzOrder.push({ playerId: player.id, socketId, name: player.name, effectiveTime });
     room.buzzOrder.sort((a, b) => a.effectiveTime - b.effectiveTime);
 
     // Stop timer on first buzz (only if timer is running)
@@ -311,7 +331,7 @@ export class GameManager {
     // Record in cellData
     const key = `${ti}-${ni}`;
     if (!room.cellData[key]) room.cellData[key] = { history: [] };
-    const player = room.players.find(p => p.socketId === playerId);
+    const player = room.players.find(p => p.id === playerId);
     room.cellData[key].history.push({
       playerId, playerName: player?.name || playerId,
       result, nominal: nom, ts: Date.now()
@@ -335,7 +355,7 @@ export class GameManager {
         room.activeCell = null;
       }
     } else {
-      room.buzzOrder = room.buzzOrder.filter(b => b.socketId !== playerId);
+      room.buzzOrder = room.buzzOrder.filter(b => b.playerId !== playerId);
       // If no one left in buzzOrder, auto-advance to next question
       if (room.buzzOrder.length === 0) {
         room.falstartBlocked = new Set();
@@ -476,11 +496,15 @@ export class GameManager {
   removePlayer(socketId, { playerId }) {
     const room = this.getRoomForSocket(socketId);
     if (!room || room.hostSocketId !== socketId) return null;
-    room.players = room.players.filter(p => p.socketId !== playerId);
-    room.buzzOrder = room.buzzOrder.filter(b => b.socketId !== playerId);
+    const player = room.players.find((p) => p.id === playerId);
+    room.players = room.players.filter(p => p.id !== playerId);
+    room.buzzOrder = room.buzzOrder.filter(b => b.playerId !== playerId);
     room.blockedPlayers.delete(playerId);
-    this.socketToRoom.delete(playerId);
-    return { room };
+    room.falstartBlocked.delete(playerId);
+    if (player?.socketId) {
+      this.socketToRoom.delete(player.socketId);
+    }
+    return { room, removedSocketId: player?.socketId || null };
   }
 
   finishGame(socketId) {
@@ -494,7 +518,7 @@ export class GameManager {
     const result = {
       topicScores: room.topicScores,
       topicNames: room.topicNames,
-      players: room.players.map(p => ({ socketId: p.socketId, name: p.name })),
+      players: room.players.map(p => ({ id: p.id, name: p.name })),
       nominals: room.settings.nominals,
       topicNominals: room.topicNominals,
       date: new Date().toISOString(),
@@ -522,12 +546,14 @@ export class GameManager {
       return { room, hostDisconnected: true };
     }
 
-    const player = room.players.find(p => p.socketId === socketId);
+    const player = this.getPlayerBySocket(room, socketId);
     if (player) player.connected = false;
-    room.buzzOrder = room.buzzOrder.filter(b => b.socketId !== socketId);
+    if (player) {
+      room.buzzOrder = room.buzzOrder.filter(b => b.playerId !== player.id);
+    }
     this.socketToRoom.delete(socketId);
 
-    return { room, playerDisconnected: socketId };
+    return { room, playerDisconnected: player?.id || socketId };
   }
 
   getGameState(room) {
@@ -540,7 +566,7 @@ export class GameManager {
       topicNames: [...room.topicNames],
       topicNominals: [...room.topicNominals],
       players: room.players.map(p => ({
-        socketId: p.socketId, name: p.name,
+        id: p.id, socketId: p.socketId, name: p.name,
         connected: p.connected, latency: p.latency
       })),
       locked: room.locked,
@@ -552,7 +578,7 @@ export class GameManager {
       cellData: room.cellData,
       timerEnd: room.timerEnd,
       timerStarted: room.timerStarted || false,
-      buzzOrder: room.buzzOrder.map(b => ({ socketId: b.socketId, name: b.name, effectiveTime: b.effectiveTime })),
+      buzzOrder: room.buzzOrder.map(b => ({ playerId: b.playerId, socketId: b.socketId, name: b.name, effectiveTime: b.effectiveTime })),
       falstartBlocked: [...room.falstartBlocked],
       cellLocked: room.cellLocked || false,
     };

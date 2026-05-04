@@ -8,15 +8,15 @@ export function TimerDisplay({ timerEnd, timerSec }) {
     <div>
       <div style={{
         fontFamily: "'Anton', 'Arial Black', sans-serif", fontSize: 72, lineHeight: 1,
-        textAlign: "center", color: urgent ? "#e63946" : "#f5c800", letterSpacing: "0.04em",
+        textAlign: "center", color: urgent ? "var(--red)" : "var(--accent)", letterSpacing: "0.04em",
         animation: urgent ? "pulse 0.5s ease infinite alternate" : "none",
       }}>
         {Math.ceil(rem)}
       </div>
-      <div style={{ height: 8, background: "#1e2940", borderRadius: 2, overflow: "hidden", marginTop: 10 }}>
+      <div style={{ height: 8, background: "var(--bg-input)", borderRadius: 2, overflow: "hidden", marginTop: 10 }}>
         <div style={{
           height: "100%", width: `${pct}%`,
-          background: urgent ? "#e63946" : "#f5c800", transition: "width 0.08s linear",
+          background: urgent ? "var(--red)" : "var(--accent)", transition: "width 0.08s linear",
         }} />
       </div>
     </div>

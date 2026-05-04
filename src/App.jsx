@@ -36,14 +36,15 @@ import { LandingScreen } from './components/LandingScreen.jsx';
 import { HostGameScreen } from './components/HostGameScreen.jsx';
 import { PlayerGameScreen } from './components/PlayerGameScreen.jsx';
 import { ResultsScreen } from './components/ResultsScreen.jsx';
+import { ThemeToggle } from './theme.jsx';
 
 const IS_DEV = false;
 
 const DEV_SCREENS = [
-  { id: "landing",    label: "Bosh sahifa" },
-  { id: "hostGame",   label: "Boshlovchi panel" },
+  { id: "landing", label: "Bosh sahifa" },
+  { id: "hostGame", label: "Boshlovchi panel" },
   { id: "playerGame", label: `O${T}yinchi ekrani` },
-  { id: "results",    label: "Natijalar" },
+  { id: "results", label: "Natijalar" },
 ];
 
 function genId() {
@@ -51,35 +52,35 @@ function genId() {
 }
 
 export default function App() {
-  const [screen, setScreen]         = useState(() => {
+  const [screen, setScreen] = useState(() => {
     const hash = window.location.hash;
     if (hash.startsWith("#results/")) return "results";
     if (hash.startsWith("#game/")) {
       try {
         const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
         if (s?.roomCode) return s.isHost ? "hostGame" : "playerGame";
-      } catch {}
+      } catch { }
     }
     return "landing";
   });
-  const [gameState, setGameState]   = useState(null);
+  const [gameState, setGameState] = useState(null);
   const [attachments, setAttachments] = useState({});
-  const [roomCode, setRoomCode]     = useState(() => {
+  const [roomCode, setRoomCode] = useState(() => {
     try {
       const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
       return s?.roomCode || null;
     } catch { return null; }
   });
-  const [isHost, setIsHost]         = useState(() => {
+  const [isHost, setIsHost] = useState(() => {
     try {
       const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
       return s?.isHost || false;
     } catch { return false; }
   });
-  const [connected, setConnected]   = useState(false);
+  const [connected, setConnected] = useState(false);
   const [gameResult, setGameResult] = useState(null);
-  const [archiveId, setArchiveId]   = useState(null);
-  const [errorMsg, setErrorMsg]     = useState(null);
+  const [archiveId, setArchiveId] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
   const gameStateRef = useRef(null);
 
   useEffect(() => {
@@ -106,7 +107,7 @@ export default function App() {
         const pending = JSON.parse(sessionStorage.getItem("game-session-pending") || "null");
         if (pending && pending.playerName) hostName = pending.playerName;
         sessionStorage.removeItem("game-session-pending");
-      } catch (e) {}
+      } catch (e) { }
       sessionStorage.setItem("game-session", JSON.stringify({ roomCode: code, isHost: true, playerName: hostName }));
     });
 
@@ -132,7 +133,7 @@ export default function App() {
 
     const unsub3 = onEvent("game-finished", ({ finalResult }) => {
       const id = finalResult.id || genId();
-      try { window.storage.set(`results:${id}`, JSON.stringify(finalResult), true); } catch(e) {}
+      try { window.storage.set(`results:${id}`, JSON.stringify(finalResult), true); } catch (e) { }
       setArchiveId(id);
       setGameResult(finalResult);
       setScreen("results");
@@ -169,8 +170,8 @@ export default function App() {
       });
     });
 
-    const unsub5 = onEvent("player-removed", ({ playerId }) => {
-      if (playerId === getSocket().id) {
+    const unsub5 = onEvent("player-removed", ({ socketId }) => {
+      if (socketId && socketId === getSocket().id) {
         setScreen("landing");
         setGameState(null);
         setRoomCode(null);
@@ -193,28 +194,28 @@ export default function App() {
   return (
     <div style={{
       height: "100vh", display: "flex", flexDirection: "column",
-      background: "#0a0e1a", color: "#f0f4ff",
+      background: "var(--bg)", color: "var(--text)",
       fontFamily: "'Montserrat', 'Segoe UI', sans-serif", position: "relative",
-      overflow: "hidden",
+      overflow: "hidden", transition: "background 0.3s, color 0.3s",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;500;600;700;900&family=Noto+Color+Emoji&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0a0e1a; font-family: 'Montserrat', 'Segoe UI', sans-serif, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji'; }
+        body { background: var(--bg); font-family: 'Montserrat', 'Segoe UI', sans-serif, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji'; transition: background 0.3s; }
         @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes pulse  { from { opacity:1; } to { opacity:0.55; } }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #111827; }
-        ::-webkit-scrollbar-thumb { background: #1e2940; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
       `}</style>
 
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(245,200,0,0.025) 1px, transparent 1px),linear-gradient(90deg, rgba(245,200,0,0.025) 1px, transparent 1px)", backgroundSize: "56px 56px" }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", backgroundImage: "linear-gradient(var(--grid-line) 1px, transparent 1px),linear-gradient(90deg, var(--grid-line) 1px, transparent 1px)", backgroundSize: "56px 56px" }} />
 
       {errorMsg && (
         <div style={{
           position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
-          zIndex: 9999, background: "#e63946", color: "#fff", padding: "10px 20px",
+          zIndex: 9999, background: "var(--red)", color: "#fff", padding: "10px 20px",
           borderRadius: 6, fontSize: 13, fontWeight: 600, fontFamily: "inherit",
           boxShadow: "0 4px 20px rgba(230,57,70,0.4)", animation: "fadeIn 0.2s ease both",
           maxWidth: "90vw", textAlign: "center",
@@ -224,13 +225,13 @@ export default function App() {
       )}
 
       {IS_DEV && (
-        <div style={{ flexShrink: 0, zIndex: 200, background: "rgba(10,14,26,0.97)", backdropFilter: "blur(8px)", borderBottom: "1px solid #1e2940", display: "flex", gap: 0, overflowX: "auto", padding: "0 8px" }}>
+        <div style={{ flexShrink: 0, zIndex: 200, background: "var(--header-bg)", backdropFilter: "blur(8px)", borderBottom: "1px solid var(--border)", display: "flex", gap: 0, overflowX: "auto", padding: "0 8px" }}>
           {DEV_SCREENS.map(s => (
             <button key={s.id} onClick={() => setScreen(s.id)} style={{
               background: "none", border: "none", cursor: "pointer", padding: "12px 14px",
               fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
-              color: screen === s.id ? "#f5c800" : "#8899aa",
-              borderBottom: screen === s.id ? "2px solid #f5c800" : "2px solid transparent",
+              color: screen === s.id ? "var(--accent)" : "var(--text-secondary)",
+              borderBottom: screen === s.id ? "2px solid var(--accent)" : "2px solid transparent",
               whiteSpace: "nowrap", fontFamily: "inherit", transition: "color 0.15s",
             }}>{s.label}</button>
           ))}
@@ -241,13 +242,13 @@ export default function App() {
         {screen === "landing" && (
           <LandingScreen
             connected={connected}
-            onHostCreated={() => {}}
+            onHostCreated={() => { }}
             onPlayerJoined={() => {
               setScreen("playerGame");
               try {
                 const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
                 if (s?.roomCode) window.location.hash = `game/${s.roomCode}`;
-              } catch {}
+              } catch { }
             }}
             errorMsg={errorMsg}
           />

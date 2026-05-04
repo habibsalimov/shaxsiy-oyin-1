@@ -119,7 +119,7 @@ io.on("connection", (socket) => {
     const result = gm.buzz(socket.id);
     if (!result) return;
     if (result.falstart) {
-      io.to(result.room.code).emit("falstart-caught", { playerId: socket.id });
+      io.to(result.room.code).emit("falstart-caught", { playerId: result.playerId });
     }
     if (result.room.buzzOrder.length > 0) {
       io.to(result.room.code).emit("buzz-update", { buzzOrder: result.room.buzzOrder });
@@ -198,7 +198,7 @@ io.on("connection", (socket) => {
   socket.on("remove-player", (data) => {
     const result = gm.removePlayer(socket.id, data);
     if (!result) return;
-    io.to(result.room.code).emit("player-removed", { playerId: data.playerId });
+    io.to(result.room.code).emit("player-removed", { playerId: data.playerId, socketId: result.removedSocketId || null });
     broadcastState(result.room);
   });
 

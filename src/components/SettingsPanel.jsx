@@ -26,30 +26,30 @@ export function SettingsPanel({ settings, onChange }) {
               onClick={() => onChange({ ...settings, selectedPreset: idx })}
               style={{
                 display: "flex", alignItems: "center", gap: 10,
-                background: selectedPreset === idx ? "rgba(245,200,0,0.1)" : "transparent",
-                border: `1px solid ${selectedPreset === idx ? "#f5c800" : "#1e2940"}`,
+                background: selectedPreset === idx ? "var(--accent-bg)" : "transparent",
+                border: `1px solid ${selectedPreset === idx ? "var(--accent)" : "var(--border)"}`,
                 borderRadius: 4, padding: "8px 12px", cursor: "pointer",
                 fontFamily: "inherit", textAlign: "left", transition: "all 0.12s",
               }}>
               <span style={{
                 width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
-                border: `2px solid ${selectedPreset === idx ? "#f5c800" : "#445566"}`,
-                background: selectedPreset === idx ? "#f5c800" : "transparent",
+                border: `2px solid ${selectedPreset === idx ? "var(--accent)" : "var(--border-input)"}`,
+                background: selectedPreset === idx ? "var(--accent)" : "transparent",
                 display: "inline-block",
               }} />
               <span style={{
                 fontFamily: "'Anton', sans-serif", fontSize: 15,
-                letterSpacing: "0.04em", color: selectedPreset === idx ? "#f5c800" : "#8899aa",
+                letterSpacing: "0.04em", color: selectedPreset === idx ? "var(--accent)" : "var(--text-secondary)",
               }}>
                 {preset.join(" / ")}
               </span>
-              {idx === 0 && <span style={{ fontSize: 10, color: "#445566", marginLeft: 4 }}>standart</span>}
+              {idx === 0 && <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 4 }}>standart</span>}
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{ borderTop: "1px solid #1e2940", paddingTop: 14 }}>
+      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
         <Toggle
           value={falstart}
           onChange={val => onChange({ ...settings, falstart: val })}

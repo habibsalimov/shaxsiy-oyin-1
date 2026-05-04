@@ -1,10 +1,10 @@
 export function Badge({ children, color = "yellow" }) {
   const colors = {
-    yellow: { background: "#f5c800", color: "#0a0e1a" },
-    green:  { background: "#2ecc71", color: "#0a0e1a" },
-    red:    { background: "#e63946", color: "#fff" },
-    gray:   { background: "#445566", color: "#f0f4ff" },
-    orange: { background: "#f39c12", color: "#0a0e1a" },
+    yellow: { background: "var(--accent)", color: "var(--bg)" },
+    green: { background: "var(--green)", color: "var(--bg)" },
+    red: { background: "var(--red)", color: "#fff" },
+    gray: { background: "var(--border-input)", color: "var(--text)" },
+    orange: { background: "var(--orange)", color: "var(--bg)" },
   };
   return (
     <span style={{

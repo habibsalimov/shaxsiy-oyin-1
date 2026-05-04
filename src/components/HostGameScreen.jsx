@@ -139,7 +139,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   const judge = (result) => {
     if (!buzzOrder.length || !activeCell) return;
     const first = buzzOrder[0];
-    emitEvent("judge", { playerId: first.socketId, result });
+    emitEvent("judge", { playerId: first.playerId, result });
   };
 
   const skipQuestion = () => {
@@ -147,12 +147,12 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
     emitEvent("skip-question", { ti: activeCell.ti, ni: activeCell.ni });
   };
 
-  const surgunPlayer = (sid) => {
-    emitEvent("remove-player", { playerId: sid });
+  const surgunPlayer = (playerId) => {
+    emitEvent("remove-player", { playerId });
   };
 
-  const toggleBlock = (sid) => {
-    emitEvent("block-player", { playerId: sid });
+  const toggleBlock = (playerId) => {
+    emitEvent("block-player", { playerId });
   };
 
   const toggleLockRoom = () => {
@@ -215,7 +215,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
   if (!gameState) {
     return (
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: "#8899aa", fontSize: 14, animation: "pulse 1s ease infinite alternate" }}>Yuklanmoqda...</div>
+        <div style={{ color: "var(--text-secondary)", fontSize: 14, animation: "pulse 1s ease infinite alternate" }}>Yuklanmoqda...</div>
       </div>
     );
   }
@@ -225,12 +225,12 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
       {/* Topbar */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 20px", borderBottom: "1px solid #1e2940",
+        padding: "10px 20px", borderBottom: "1px solid var(--border)",
         background: "rgba(17,24,39,0.97)", backdropFilter: "blur(8px)",
         flexShrink: 0, zIndex: 90,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, letterSpacing: "0.1em", color: "#f5c800" }}>
+          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, letterSpacing: "0.1em", color: "var(--accent)" }}>
             {`SHAXSIY O${T}YIN`}
           </span>
           <Badge color="yellow">BOSHLOVCHI</Badge>
@@ -243,17 +243,17 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
             {roomLocked ? "\uD83D\uDD12" : "\uD83D\uDD13"}
           </Btn>
           <button onClick={() => setPlayersOpen(o => !o)} style={{
-            background: playersOpen ? "rgba(245,200,0,0.15)" : "#1e2940",
-            border: `1px solid ${playersOpen ? "#f5c800" : "#445566"}`,
+            background: playersOpen ? "var(--accent-bg)" : "var(--bg-input)",
+            border: `1px solid ${playersOpen ? "var(--accent)" : "var(--text-muted)"}`,
             borderRadius: 4, padding: "7px 10px", cursor: "pointer",
-            color: playersOpen ? "#f5c800" : "#8899aa", fontSize: 13, fontWeight: 700,
+            color: playersOpen ? "var(--accent)" : "var(--text-secondary)", fontSize: 13, fontWeight: 700,
             fontFamily: "inherit", lineHeight: 1, transition: "all 0.15s",
           }}>{"\uD83D\uDC65"}</button>
           <button onClick={() => setSettingsOpen(o => !o)} style={{
-            background: settingsOpen ? "rgba(245,200,0,0.15)" : "#1e2940",
-            border: `1px solid ${settingsOpen ? "#f5c800" : "#445566"}`,
+            background: settingsOpen ? "var(--accent-bg)" : "var(--bg-input)",
+            border: `1px solid ${settingsOpen ? "var(--accent)" : "var(--text-muted)"}`,
             borderRadius: 4, padding: "7px 10px", cursor: "pointer",
-            color: settingsOpen ? "#f5c800" : "#8899aa", fontSize: 16, lineHeight: 1, transition: "all 0.15s",
+            color: settingsOpen ? "var(--accent)" : "var(--text-secondary)", fontSize: 16, lineHeight: 1, transition: "all 0.15s",
           }}>{"\u2699"}</button>
           <Btn size="sm" variant="danger" onClick={onFinish}>Tugatish</Btn>
         </div>
@@ -267,14 +267,14 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
           animation: "fadeIn 0.15s ease both",
         }}>
           <div onClick={e => e.stopPropagation()} style={{
-            background: "#111827", border: "1px solid #2a3a52",
+            background: "var(--bg-card)", border: "1px solid var(--border-strong)",
             borderRadius: 12, padding: "20px 24px", width: "90%", maxWidth: 440,
             maxHeight: "80vh", overflowY: "auto",
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#8899aa", textTransform: "uppercase" }}>Sozlamalar</span>
+              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "var(--text-secondary)", textTransform: "uppercase" }}>Sozlamalar</span>
               <button onClick={() => setSettingsOpen(false)} style={{
-                background: "none", border: "none", color: "#8899aa", fontSize: 18,
+                background: "none", border: "none", color: "var(--text-secondary)", fontSize: 18,
                 cursor: "pointer", padding: "2px 6px", lineHeight: 1,
               }}>{"\u2715"}</button>
             </div>
@@ -287,39 +287,39 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
       )}
 
       {playersOpen && (
-        <div style={{ background: "#111827", borderBottom: "1px solid #1e2940", padding: "12px 24px", animation: "fadeIn 0.15s ease both" }}>
+        <div style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border)", padding: "12px 24px", animation: "fadeIn 0.15s ease both" }}>
           <div style={{ maxWidth: 480 }}>
-            <div style={{ fontSize: 10, color: "#8899aa", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>
+            <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>
               O'yinchilar boshqaruvi
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {players.map(p => (
-                <div key={p.socketId} style={{
+                <div key={p.id} style={{
                   display: "flex", alignItems: "center", gap: 8,
-                  background: "#1e2940", borderRadius: 6, padding: "7px 10px",
-                  opacity: blockedPlayers.has(p.socketId) ? 0.55 : !p.connected ? 0.4 : 1,
+                  background: "var(--bg-input)", borderRadius: 6, padding: "7px 10px",
+                  opacity: blockedPlayers.has(p.id) ? 0.55 : !p.connected ? 0.4 : 1,
                 }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
-                    background: !p.connected ? "#f39c12" : blockedPlayers.has(p.socketId) ? "#e63946" : "#2ecc71" }} />
+                    background: !p.connected ? "var(--orange)" : blockedPlayers.has(p.id) ? "var(--red)" : "var(--green)" }} />
                   <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{p.name}</span>
-                  {!p.connected && <span style={{ fontSize: 10, color: "#f39c12", fontWeight: 700 }}>UZILGAN</span>}
-                  {blockedPlayers.has(p.socketId) && <span style={{ fontSize: 10, color: "#e63946", fontWeight: 700 }}>BLOKLANGAN</span>}
-                  <button onClick={() => toggleBlock(p.socketId)} style={{
-                    background: blockedPlayers.has(p.socketId) ? "rgba(245,200,0,0.15)" : "transparent",
-                    border: `1px solid ${blockedPlayers.has(p.socketId) ? "#f5c800" : "#2a3a52"}`,
+                  {!p.connected && <span style={{ fontSize: 10, color: "var(--orange)", fontWeight: 700 }}>UZILGAN</span>}
+                  {blockedPlayers.has(p.id) && <span style={{ fontSize: 10, color: "var(--red)", fontWeight: 700 }}>BLOKLANGAN</span>}
+                  <button onClick={() => toggleBlock(p.id)} style={{
+                    background: blockedPlayers.has(p.id) ? "var(--accent-bg)" : "transparent",
+                    border: `1px solid ${blockedPlayers.has(p.id) ? "var(--accent)" : "var(--border-strong)"}`,
                     borderRadius: 4, padding: "3px 8px", cursor: "pointer",
-                    color: blockedPlayers.has(p.socketId) ? "#f5c800" : "#445566",
+                    color: blockedPlayers.has(p.id) ? "var(--accent)" : "var(--text-muted)",
                     fontSize: 10, fontFamily: "inherit", fontWeight: 700,
-                  }}>{blockedPlayers.has(p.socketId) ? "BLOKDAN CHIQAR" : "BLOKLASH"}</button>
-                  <button onClick={() => surgunPlayer(p.socketId)} style={{
+                  }}>{blockedPlayers.has(p.id) ? "BLOKDAN CHIQAR" : "BLOKLASH"}</button>
+                  <button onClick={() => surgunPlayer(p.id)} style={{
                     background: "transparent", border: "1px solid rgba(230,57,70,0.4)",
                     borderRadius: 4, padding: "3px 8px", cursor: "pointer",
-                    color: "#e63946", fontSize: 10, fontFamily: "inherit", fontWeight: 700,
+                    color: "var(--red)", fontSize: 10, fontFamily: "inherit", fontWeight: 700,
                   }}>SURGUN</button>
                 </div>
               ))}
               {players.length === 0 && (
-                <div style={{ fontSize: 12, color: "#445566", padding: "8px 0" }}>Hali hech kim ulanmagan</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "8px 0" }}>Hali hech kim ulanmagan</div>
               )}
             </div>
           </div>
@@ -332,38 +332,38 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
           <Card style={{ textAlign: "center", maxWidth: 400, width: "100%" }}>
             <div style={{ marginBottom: 16 }}>
               <Label>{`O${T}YIN KODI`}</Label>
-              <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 52, letterSpacing: "0.24em", color: "#f5c800", cursor: "pointer" }} onClick={copyCode}>
+              <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 52, letterSpacing: "0.24em", color: "var(--accent)", cursor: "pointer" }} onClick={copyCode}>
                 {roomCode || "..."}
               </div>
-              <div style={{ fontSize: 11, color: "#8899aa", marginTop: 6 }}>Bosib nusxalash</div>
+              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 6 }}>Bosib nusxalash</div>
             </div>
             <Label>ULANGANLAR</Label>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
               {players.map(p => (
-                <div key={p.socketId} style={{
+                <div key={p.id} style={{
                   display: "flex", alignItems: "center", gap: 8,
-                  background: "#1e2940", borderRadius: 8, padding: "7px 10px",
-                  opacity: blockedPlayers.has(p.socketId) ? 0.5 : 1,
+                  background: "var(--bg-input)", borderRadius: 8, padding: "7px 10px",
+                  opacity: blockedPlayers.has(p.id) ? 0.5 : 1,
                 }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
-                    background: blockedPlayers.has(p.socketId) ? "#e63946" : "#2ecc71" }} />
+                    background: blockedPlayers.has(p.id) ? "var(--red)" : "var(--green)" }} />
                   <span style={{ fontWeight: 600, fontSize: 13, flex: 1, textAlign: "left" }}>{p.name}</span>
-                  <button onClick={() => toggleBlock(p.socketId)} style={{
-                    background: blockedPlayers.has(p.socketId) ? "rgba(245,200,0,0.15)" : "transparent",
-                    border: `1px solid ${blockedPlayers.has(p.socketId) ? "#f5c800" : "#2a3a52"}`,
+                  <button onClick={() => toggleBlock(p.id)} style={{
+                    background: blockedPlayers.has(p.id) ? "var(--accent-bg)" : "transparent",
+                    border: `1px solid ${blockedPlayers.has(p.id) ? "var(--accent)" : "var(--border-strong)"}`,
                     borderRadius: 4, padding: "3px 7px", cursor: "pointer",
-                    color: blockedPlayers.has(p.socketId) ? "#f5c800" : "#445566",
+                    color: blockedPlayers.has(p.id) ? "var(--accent)" : "var(--text-muted)",
                     fontSize: 11, fontFamily: "inherit", fontWeight: 700,
-                  }}>{blockedPlayers.has(p.socketId) ? "BLOK \u2713" : "BLOK"}</button>
-                  <button onClick={() => surgunPlayer(p.socketId)} style={{
-                    background: "transparent", border: "1px solid #2a3a52",
+                  }}>{blockedPlayers.has(p.id) ? "BLOK \u2713" : "BLOK"}</button>
+                  <button onClick={() => surgunPlayer(p.id)} style={{
+                    background: "transparent", border: "1px solid var(--border-strong)",
                     borderRadius: 4, padding: "3px 7px", cursor: "pointer",
-                    color: "#e63946", fontSize: 11, fontFamily: "inherit", fontWeight: 700,
+                    color: "var(--red)", fontSize: 11, fontFamily: "inherit", fontWeight: 700,
                   }}>SURGUN</button>
                 </div>
               ))}
               {players.length === 0 && (
-                <div style={{ fontSize: 12, color: "#445566", padding: "12px 0", fontStyle: "italic" }}>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "12px 0", fontStyle: "italic" }}>
                   {`O${T}yinchilar kutilmoqda...`}
                 </div>
               )}
@@ -389,19 +389,19 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
         <div style={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: isMobile ? "auto" : "hidden", minHeight: 0 }}>
 
           {/* LEFT: Topic/Question tree */}
-          <div style={isMobile ? { width: "100%", borderBottom: "1px solid #1e2940", overflowY: "visible" }
-            : { width: 320, flexShrink: 0, borderRight: "1px solid #1e2940", overflowY: "auto", minHeight: 0 }}>
+          <div style={isMobile ? { width: "100%", borderBottom: "1px solid var(--border)", overflowY: "visible" }
+            : { width: 320, flexShrink: 0, borderRight: "1px solid var(--border)", overflowY: "auto", minHeight: 0 }}>
             {topicNames.map((topicName, ti) => {
               const isTopicActive = activeCell && activeCell.ti === ti;
               return (
                 <div key={ti} style={{ marginBottom: 2 }}>
                   <div style={{
                     display: "flex", alignItems: "center", gap: 8, padding: "9px 14px",
-                    borderLeft: isTopicActive ? "3px solid #f5c800" : "3px solid transparent",
-                    background: isTopicActive ? "rgba(245,200,0,0.12)" : expandedTopics.has(ti) ? "#161f30" : "#0f1726",
-                    borderBottom: "1px solid #1e2940", cursor: "pointer", userSelect: "none",
+                    borderLeft: isTopicActive ? "3px solid var(--accent)" : "3px solid transparent",
+                    background: isTopicActive ? "var(--accent-bg)" : expandedTopics.has(ti) ? "var(--bg-section-open)" : "var(--bg-section)",
+                    borderBottom: "1px solid var(--border)", cursor: "pointer", userSelect: "none",
                   }} onClick={() => toggleTopic(ti)}>
-                    <span style={{ fontSize: 11, color: "#445566", flexShrink: 0, transition: "transform 0.2s", display: "inline-block", transform: expandedTopics.has(ti) ? "rotate(90deg)" : "rotate(0deg)" }}>{"\u25B6"}</span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", flexShrink: 0, transition: "transform 0.2s", display: "inline-block", transform: expandedTopics.has(ti) ? "rotate(90deg)" : "rotate(0deg)" }}>{"\u25B6"}</span>
                     {editingTopic === ti ? (
                       <input autoFocus value={editValue}
                         onChange={e => setEditValue(e.target.value)}
@@ -411,15 +411,15 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                           if (e.key === "Escape") setEditingTopic(null);
                         }}
                         onBlur={() => { setEditingTopic(null); }}
-                        style={{ background: "#1e2940", border: "1px solid #f5c800", color: "#f0f4ff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, borderRadius: 3, padding: "4px 8px", outline: "none", flex: 1 }}
+                        style={{ background: "var(--bg-input)", border: "1px solid var(--accent)", color: "var(--text)", fontFamily: "inherit", fontSize: 14, fontWeight: 700, borderRadius: 3, padding: "4px 8px", outline: "none", flex: 1 }}
                       />
                     ) : (
                       <span onClick={e => { e.stopPropagation(); setEditingTopic(ti); setEditValue(topicName); }}
-                        style={{ fontFamily: "'Anton', sans-serif", fontSize: 14, letterSpacing: "0.04em", color: isTopicActive ? "#f5c800" : "#f0f4ff", flex: 1 }}>
+                        style={{ fontFamily: "'Anton', sans-serif", fontSize: 14, letterSpacing: "0.04em", color: isTopicActive ? "var(--accent)" : "var(--text)", flex: 1 }}>
                         {ti + 1}. {topicName}
                       </span>
                     )}
-                    <span style={{ fontSize: 11, color: "#445566", flexShrink: 0 }}>{(topicNominals[ti] || activeNominals).length} savol</span>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>{(topicNominals[ti] || activeNominals).length} savol</span>
                   </div>
 
                   {expandedTopics.has(ti) && (topicNominals[ti] || activeNominals).map((nom, ni) => {
@@ -440,48 +440,48 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                         }} style={{
                           display: "flex", alignItems: "center", gap: 10, padding: "9px 16px 9px 28px",
                           cursor: "pointer",
-                          background: isActive ? "rgba(245,200,0,0.08)" : "transparent",
-                          borderLeft: isActive ? "3px solid #f5c800" : "3px solid transparent",
+                          background: isActive ? "var(--accent-bg-subtle)" : "transparent",
+                          borderLeft: isActive ? "3px solid var(--accent)" : "3px solid transparent",
                           transition: "background 0.1s",
                           opacity: !isDone && !isCellAllowed(ti, ni) ? 0.35 : 1,
                         }}
                           onMouseEnter={e => { if (!isActive && isCellAllowed(ti, ni)) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
                           onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
-                          <span style={{ fontSize: 13, minWidth: 16, color: isDone ? (lastResult?.result === "correct" ? "#2ecc71" : "#445566") : "#445566" }}>
+                          <span style={{ fontSize: 13, minWidth: 16, color: isDone ? (lastResult?.result === "correct" ? "var(--green)" : "var(--text-muted)") : "var(--text-muted)" }}>
                             {isDone ? (lastResult?.result === "correct" ? "\u2713" : "\u23ED") : (isActive ? "\u25B6" : "\u25B6")}
                           </span>
-                          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: isActive ? "#f5c800" : isDone ? "#8899aa" : "#f0f4ff", minWidth: 36 }}>{nom}</span>
-                          <span style={{ fontSize: 11, color: "#445566", flex: 1, fontStyle: "italic" }}>{topicName}</span>
+                          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: isActive ? "var(--accent)" : isDone ? "var(--text-secondary)" : "var(--text)", minWidth: 36 }}>{nom}</span>
+                          <span style={{ fontSize: 11, color: "var(--text-muted)", flex: 1, fontStyle: "italic" }}>{topicName}</span>
                           {attachment?.image && <span style={{ fontSize: 12 }}>{"\uD83D\uDDBC\uFE0F"}</span>}
                           {attachment?.text && <span style={{ fontSize: 12 }}>{"\uD83D\uDCDD"}</span>}
                           {isLocked && <span style={{ fontSize: 12 }}>{"\uD83D\uDD12"}</span>}
                           {cd.history.length > 0 && (
                             <button onClick={e => { e.stopPropagation(); setExpandedCell(expandedCell === cellKey(ti, ni) ? null : cellKey(ti, ni)); }} style={{
-                              background: expandedCell === cellKey(ti, ni) ? "rgba(245,200,0,0.15)" : "#1e2940",
-                              border: expandedCell === cellKey(ti, ni) ? "1px solid #f5c800" : "none",
+                              background: expandedCell === cellKey(ti, ni) ? "var(--accent-bg)" : "var(--bg-input)",
+                              border: expandedCell === cellKey(ti, ni) ? "1px solid var(--accent)" : "none",
                               borderRadius: 3, padding: "3px 8px",
-                              fontSize: 10, color: expandedCell === cellKey(ti, ni) ? "#f5c800" : "#8899aa", cursor: "pointer", fontFamily: "inherit",
+                              fontSize: 10, color: expandedCell === cellKey(ti, ni) ? "var(--accent)" : "var(--text-secondary)", cursor: "pointer", fontFamily: "inherit",
                             }}>TARIX</button>
                           )}
                         </div>
 
                         {(isActive || expandedCell === cellKey(ti, ni)) && (
-                          <div style={{ margin: "0 8px 8px", borderRadius: 6, background: "#111827", border: "1px solid #2a3a52", padding: "12px 14px", animation: "fadeIn 0.15s ease both" }}>
+                          <div style={{ margin: "0 8px 8px", borderRadius: 6, background: "var(--bg-card)", border: "1px solid var(--border-strong)", padding: "12px 14px", animation: "fadeIn 0.15s ease both" }}>
                             {(isDone || expandedCell === cellKey(ti, ni)) ? (
                               <>
                                 <div style={{ marginBottom: 12 }}>
-                                  <div style={{ fontSize: 10, color: "#8899aa", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>Savol tarixi</div>
+                                  <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase" }}>Savol tarixi</div>
                                   {cd.history.map((h, idx) => (
                                     <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 13 }}>
                                       {(h.result === "no_answer" || h.result === "skipped") ? (
-                                        <span style={{ color: "#445566", fontStyle: "italic", fontSize: 12 }}>
+                                        <span style={{ color: "var(--text-muted)", fontStyle: "italic", fontSize: 12 }}>
                                           {h.result === "no_answer" ? "\u23F1 Hech kim javob bermadi" : "\u23ED O'tkazib yuborildi"}
                                         </span>
                                       ) : (
                                         <>
-                                          <span style={{ color: h.result === "correct" ? "#2ecc71" : "#e63946", fontSize: 15, minWidth: 16 }}>{h.result === "correct" ? "\u2713" : "\u2717"}</span>
+                                          <span style={{ color: h.result === "correct" ? "var(--green)" : "var(--red)", fontSize: 15, minWidth: 16 }}>{h.result === "correct" ? "\u2713" : "\u2717"}</span>
                                           <span style={{ flex: 1, fontWeight: 600 }}>{h.playerName}</span>
-                                          <span style={{ color: h.result === "correct" ? "#2ecc71" : "#e63946", fontFamily: "'Anton', sans-serif", fontSize: 15 }}>
+                                          <span style={{ color: h.result === "correct" ? "var(--green)" : "var(--red)", fontFamily: "'Anton', sans-serif", fontSize: 15 }}>
                                             {h.result === "correct" ? "+" : "\u2212"}{h.nominal}
                                           </span>
                                         </>
@@ -491,7 +491,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                 </div>
                                 {confirmReset === cellKey(ti, ni) ? (
                                   <div style={{ border: "1px solid rgba(230,57,70,0.4)", borderRadius: 6, padding: "10px 12px", background: "rgba(230,57,70,0.06)" }}>
-                                    <div style={{ fontSize: 12, color: "#f0f4ff", marginBottom: 10, lineHeight: 1.4 }}>
+                                    <div style={{ fontSize: 12, color: "var(--text)", marginBottom: 10, lineHeight: 1.4 }}>
                                       Ushbu savoldagi barcha natijalar bekor qilinadi. Davom etasizmi?
                                     </div>
                                     <div style={{ display: "flex", gap: 8 }}>
@@ -518,13 +518,13 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                 {attachment?.image && (
                                   <div style={{ marginBottom: 10, position: "relative" }}>
                                     <img src={attachment.image} alt="" onClick={() => setLightboxSrc(attachment.image)} style={{ maxWidth: "100%", borderRadius: 4, maxHeight: 120, objectFit: "cover", cursor: "pointer" }} />
-                                    <button onClick={() => removeAttachment(ti, ni, "image")} style={{ position: "absolute", top: 4, right: 4, background: "#e63946", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
+                                    <button onClick={() => removeAttachment(ti, ni, "image")} style={{ position: "absolute", top: 4, right: 4, background: "var(--red)", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
                                   </div>
                                 )}
                                 {attachment?.text && (
                                   <div style={{ marginBottom: 10, position: "relative" }}>
-                                    <div style={{ background: "#1e2940", borderRadius: 4, padding: "10px 12px", fontSize: 13, color: "#f0f4ff", lineHeight: 1.5 }}>{attachment.text}</div>
-                                    <button onClick={() => removeAttachment(ti, ni, "text")} style={{ position: "absolute", top: 4, right: 4, background: "#e63946", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
+                                    <div style={{ background: "var(--bg-input)", borderRadius: 4, padding: "10px 12px", fontSize: 13, color: "var(--text)", lineHeight: 1.5 }}>{attachment.text}</div>
+                                    <button onClick={() => removeAttachment(ti, ni, "text")} style={{ position: "absolute", top: 4, right: 4, background: "var(--red)", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 11, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{"\u2715"}</button>
                                   </div>
                                 )}
 
@@ -534,24 +534,24 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                                       <input autoFocus value={attachText} onChange={e => setAttachText(e.target.value)}
                                         onKeyDown={e => e.key === "Enter" && handleAttachText(ti, ni)}
                                         placeholder="Matn kiriting va Enter bosing..."
-                                        style={{ flex: 1, background: "#1e2940", border: "1px solid #f5c800", color: "#f0f4ff", borderRadius: 4, padding: "8px 10px", fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                                        style={{ flex: 1, background: "var(--bg-input)", border: "1px solid var(--accent)", color: "var(--text)", borderRadius: 4, padding: "8px 10px", fontSize: 12, fontFamily: "inherit", outline: "none" }}
                                       />
-                                      <button onClick={() => handleAttachText(ti, ni)} style={{ background: "#f5c800", border: "none", borderRadius: 4, padding: "0 12px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{"\u2713"}</button>
-                                      <button onClick={() => setAttachMode(null)} style={{ background: "#1e2940", border: "none", borderRadius: 4, padding: "0 10px", cursor: "pointer", color: "#8899aa" }}>{"\u2715"}</button>
+                                      <button onClick={() => handleAttachText(ti, ni)} style={{ background: "var(--accent)", border: "none", borderRadius: 4, padding: "0 12px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{"\u2713"}</button>
+                                      <button onClick={() => setAttachMode(null)} style={{ background: "var(--bg-input)", border: "none", borderRadius: 4, padding: "0 10px", cursor: "pointer", color: "var(--text-secondary)" }}>{"\u2715"}</button>
                                     </div>
                                   </div>
                                 )}
 
                                 <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                                  <button onClick={() => { setAttachMode({ ti, ni, type: "text" }); setAttachText(""); }} style={{ background: "#1e2940", border: "1px solid #2a3a52", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "#8899aa", fontSize: 14 }}>{"\uD83D\uDCDD"}</button>
-                                  <label style={{ background: "#1e2940", border: "1px solid #2a3a52", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "#8899aa", fontSize: 14 }}>
+                                  <button onClick={() => { setAttachMode({ ti, ni, type: "text" }); setAttachText(""); }} style={{ background: "var(--bg-input)", border: "1px solid var(--border-strong)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "var(--text-secondary)", fontSize: 14 }}>{"\uD83D\uDCDD"}</button>
+                                  <label style={{ background: "var(--bg-input)", border: "1px solid var(--border-strong)", borderRadius: 4, padding: "6px 10px", cursor: "pointer", color: "var(--text-secondary)", fontSize: 14 }}>
                                     {"\uD83D\uDDBC\uFE0F"}<input type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleAttachImage(ti, ni, e)} />
                                   </label>
                                   <button onClick={() => emitEvent("lock-cell")} style={{
-                                    background: isLocked ? "rgba(243,156,18,0.15)" : "#1e2940",
-                                    border: `1px solid ${isLocked ? "#f39c12" : "#2a3a52"}`,
+                                    background: isLocked ? "rgba(243,156,18,0.15)" : "var(--bg-input)",
+                                    border: `1px solid ${isLocked ? "var(--orange)" : "var(--border-strong)"}`,
                                     borderRadius: 4, padding: "6px 12px", cursor: "pointer",
-                                    color: isLocked ? "#f39c12" : "#8899aa", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+                                    color: isLocked ? "var(--orange)" : "var(--text-secondary)", fontSize: 12, fontWeight: 700, fontFamily: "inherit",
                                   }}>{isLocked ? "\uD83D\uDD12 Bloklangan" : "\uD83D\uDD13 Qulf"}</button>
                                   <div style={{ flex: 1 }} />
                                 </div>
@@ -568,21 +568,21 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
 
                                 {buzzOrder.length > 0 && (
                                   <div style={{ marginBottom: 8 }}>
-                                    <div style={{ fontSize: 10, color: "#8899aa", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase" }}>Javob tartibi</div>
+                                    <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase" }}>Javob tartibi</div>
                                     {buzzOrder.map((b, i) => (
-                                      <div key={b.socketId} style={{
+                                      <div key={b.playerId} style={{
                                         display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 4, marginBottom: 4,
-                                        background: i === 0 ? "rgba(46,204,113,0.12)" : "rgba(255,255,255,0.03)",
-                                        border: i === 0 ? "1px solid #2ecc71" : "1px solid transparent",
+                                        background: i === 0 ? "var(--green-bg)" : "rgba(255,255,255,0.03)",
+                                        border: i === 0 ? "1px solid var(--green)" : "1px solid transparent",
                                         flexWrap: "wrap",
                                       }}>
-                                        <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: i === 0 ? "#2ecc71" : "#8899aa", minWidth: 18, flexShrink: 0 }}>{i + 1}</span>
+                                        <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: i === 0 ? "var(--green)" : "var(--text-secondary)", minWidth: 18, flexShrink: 0 }}>{i + 1}</span>
                                         <span style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{b.name}</span>
-                                        {i > 0 && <span style={{ fontSize: 10, color: "#8899aa", flexShrink: 0 }}>+{b.effectiveTime - buzzOrder[0].effectiveTime}ms</span>}
+                                        {i > 0 && <span style={{ fontSize: 10, color: "var(--text-secondary)", flexShrink: 0 }}>+{b.effectiveTime - buzzOrder[0].effectiveTime}ms</span>}
                                         {i === 0 && (
                                           <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                                            <button onClick={() => judge("correct")} style={{ background: "#2ecc71", border: "none", borderRadius: 3, padding: "4px 10px", cursor: "pointer", fontWeight: 700, color: "#0a0e1a", fontSize: 11, fontFamily: "inherit" }}>{"\u2713"} {`TO${T}G${T}RI`}</button>
-                                            <button onClick={() => judge("wrong")} style={{ background: "#e63946", border: "none", borderRadius: 3, padding: "4px 10px", cursor: "pointer", fontWeight: 700, color: "#fff", fontSize: 11, fontFamily: "inherit" }}>{"\u2717"} {`NOTO${T}G${T}RI`}</button>
+                                            <button onClick={() => judge("correct")} style={{ background: "var(--green)", border: "none", borderRadius: 3, padding: "4px 10px", cursor: "pointer", fontWeight: 700, color: "var(--bg)", fontSize: 11, fontFamily: "inherit" }}>{"\u2713"} {`TO${T}G${T}RI`}</button>
+                                            <button onClick={() => judge("wrong")} style={{ background: "var(--red)", border: "none", borderRadius: 3, padding: "4px 10px", cursor: "pointer", fontWeight: 700, color: "#fff", fontSize: 11, fontFamily: "inherit" }}>{"\u2717"} {`NOTO${T}G${T}RI`}</button>
                                           </div>
                                         )}
                                       </div>
@@ -592,8 +592,8 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
 
                                 {settings.falstart && falstartBlocked.size > 0 && (
                                   <div style={{ marginBottom: 8, padding: "6px 10px", background: "rgba(243,156,18,0.06)", borderRadius: 4, border: "1px solid rgba(243,156,18,0.2)" }}>
-                                    <div style={{ fontSize: 10, color: "#f39c12", fontWeight: 700, letterSpacing: "0.08em", marginBottom: 4 }}>FALSTART</div>
-                                    {[...falstartBlocked].map(sid => { const p = players.find(pl => pl.socketId === sid); return p ? <div key={sid} style={{ fontSize: 12, color: "#f39c12" }}>{"\u26A1"} {p.name}</div> : null; })}
+                                    <div style={{ fontSize: 10, color: "var(--orange)", fontWeight: 700, letterSpacing: "0.08em", marginBottom: 4 }}>FALSTART</div>
+                                    {[...falstartBlocked].map(playerId => { const p = players.find(pl => pl.id === playerId); return p ? <div key={playerId} style={{ fontSize: 12, color: "var(--orange)" }}>{"\u26A1"} {p.name}</div> : null; })}
                                   </div>
                                 )}
 
@@ -613,12 +613,12 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
 
             <div style={{ padding: "10px 12px 16px" }}>
               <button onClick={() => emitEvent("add-topic", {})} style={{
-                width: "100%", background: "transparent", border: "1px dashed #2a3a52", borderRadius: 4,
-                padding: "8px 14px", cursor: "pointer", fontFamily: "inherit", color: "#445566",
+                width: "100%", background: "transparent", border: "1px dashed var(--border-strong)", borderRadius: 4,
+                padding: "8px 14px", cursor: "pointer", fontFamily: "inherit", color: "var(--text-muted)",
                 fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", transition: "all 0.15s",
               }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "#f5c800"; e.currentTarget.style.color = "#f5c800"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a3a52"; e.currentTarget.style.color = "#445566"; }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border-strong)"; e.currentTarget.style.color = "var(--text-muted)"; }}
               >+ Mavzu qo{T}shish</button>
             </div>
           </div>
@@ -627,8 +627,8 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
           <div style={{ flex: 1, overflowY: isMobile ? "visible" : "auto", minHeight: 0, padding: "12px 16px" }}>
             {activeCell && (
               <div style={{ marginBottom: 12, padding: "8px 14px", background: "rgba(245,200,0,0.06)", borderRadius: 6, border: "1px solid rgba(245,200,0,0.15)", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, color: "#8899aa" }}>Faol savol:</span>
-                <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 15, color: "#f5c800" }}>
+                <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>Faol savol:</span>
+                <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 15, color: "var(--accent)" }}>
                   {(topicNominals[activeCell.ti] || activeNominals)[activeCell.ni]} — {topicNames[activeCell.ti]}
                 </span>
               </div>
@@ -642,14 +642,14 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
               const activeNomForPanel = isCurrentTopic && activeCell ? panelNominals[activeCell.ni] : null;
 
               return (
-                <div key={scorePanelTi} style={{ marginBottom: 12, border: `1px solid ${isCurrentTopic ? "rgba(245,200,0,0.3)" : "#1e2940"}`, borderRadius: 6, overflow: "hidden" }}>
+                <div key={scorePanelTi} style={{ marginBottom: 12, border: `1px solid ${isCurrentTopic ? "rgba(245,200,0,0.3)" : "var(--bg-input)"}`, borderRadius: 6, overflow: "hidden" }}>
                   <div onClick={() => toggleScorePanel(scorePanelTi)}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", cursor: "pointer", userSelect: "none", background: isCurrentTopic ? "rgba(245,200,0,0.08)" : "#0f1726", borderBottom: isCollapsed ? "none" : "1px solid #1e2940" }}>
-                    <span style={{ fontSize: 11, color: "#445566", display: "inline-block", transition: "transform 0.2s", transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}>{"\u25B6"}</span>
-                    <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, letterSpacing: "0.06em", color: isCurrentTopic ? "#f5c800" : "#8899aa", flex: 1 }}>
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", cursor: "pointer", userSelect: "none", background: isCurrentTopic ? "var(--accent-bg-subtle)" : "var(--bg-section)", borderBottom: isCollapsed ? "none" : "1px solid var(--border)" }}>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", display: "inline-block", transition: "transform 0.2s", transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}>{"\u25B6"}</span>
+                    <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, letterSpacing: "0.06em", color: isCurrentTopic ? "var(--accent)" : "var(--text-secondary)", flex: 1 }}>
                       {scorePanelTi + 1}. {topicNames[scorePanelTi] || `${scorePanelTi + 1}-mavzu`}
                     </span>
-                    {isCurrentTopic ? <Badge color="yellow">FAOL</Badge> : <span style={{ fontSize: 10, color: "#445566" }}>tugadi</span>}
+                    {isCurrentTopic ? <Badge color="yellow">FAOL</Badge> : <span style={{ fontSize: 10, color: "var(--text-muted)" }}>tugadi</span>}
                   </div>
                   {!isCollapsed && (
                     <ScoreBoard
@@ -657,10 +657,10 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                       currentNominal={activeNomForPanel} isHost={true} allTopicScores={topicScores}
                       blockedPlayers={blockedPlayers}
                       topicNominals={topicNominals}
-                      onCellClick={(sid, n) => {
+                      onCellClick={(playerId, n) => {
                         const ni = panelNominals.indexOf(n);
                         if (ni === -1) return;
-                        emitEvent("correct-score", { playerId: sid, ti: scorePanelTi, ni });
+                        emitEvent("correct-score", { playerId, ti: scorePanelTi, ni });
                       }}
                     />
                   )}
@@ -668,12 +668,12 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
               );
             })}
             {topicScores.length === 0 && (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "#445566", fontSize: 13 }}>
+              <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)", fontSize: 13 }}>
                 Taymerni boshlang — natijalar shu yerda ko{T}rinadi
               </div>
             )}
             {topicScores.length > 0 && (
-              <div style={{ fontSize: 11, color: "#445566", marginTop: 4 }}>{`Katakchani bosib natijani o${T}zgartirish mumkin (null \u2192 to${T}g${T}ri \u2192 noto${T}g${T}ri \u2192 null)`}</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{`Katakchani bosib natijani o${T}zgartirish mumkin (null \u2192 to${T}g${T}ri \u2192 noto${T}g${T}ri \u2192 null)`}</div>
             )}
           </div>
         </div>

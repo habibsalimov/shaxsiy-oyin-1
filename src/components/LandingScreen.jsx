@@ -3,6 +3,7 @@ import { NOMINAL_PRESETS, T } from '../utils/constants.js';
 import { emitEvent, onEvent } from '../socket.js';
 import { Btn, Badge, Label, Input, SectionToggle } from './ui/index.js';
 import { SettingsPanel } from './SettingsPanel.jsx';
+import { ThemeToggle } from '../theme.jsx';
 
 export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorMsg }) {
   const [hostName, setHostName] = useState("");
@@ -55,7 +56,7 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
   }, [joinPending, gameCode, playerName, onPlayerJoined]);
 
   const card = {
-    background: "#111827", border: "1px solid #1e2940", borderRadius: 8,
+    background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8,
     padding: "28px 24px", display: "flex", flexDirection: "column", flex: 1, minWidth: 280,
   };
 
@@ -63,6 +64,10 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", animation: "fadeIn 0.4s ease both" }}>
+      <div style={{ position: "absolute", top: 16, right: 16, zIndex: 10 }}>
+        <ThemeToggle />
+      </div>
+
       <div style={{ textAlign: "center", padding: "40px 24px 28px" }}>
         <div style={{ marginBottom: 8 }}>
           <Badge color="yellow">Zakovat klubi bilimdonlari uchun</Badge>
@@ -70,12 +75,12 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
         <div style={{
           fontFamily: "'Anton', 'Arial Black', sans-serif",
           fontSize: "clamp(42px, 10vw, 80px)", lineHeight: 1.0,
-          color: "#f5c800", letterSpacing: "0.06em",
-          textShadow: "0 0 80px rgba(245,200,0,0.25)", marginBottom: 8,
+          color: "var(--title-color)", letterSpacing: "0.06em",
+          textShadow: "0 0 80px var(--accent-glow)", marginBottom: 8,
         }}>
           {`SHAXSIY O${T}YIN`}
         </div>
-        <p style={{ color: "#8899aa", fontSize: 14, letterSpacing: "0.04em" }}>
+        <p style={{ color: "var(--text-secondary)", fontSize: 14, letterSpacing: "0.04em" }}>
           Avtomatik hisob-kitob imkoni bilan platforma
         </p>
       </div>
@@ -88,35 +93,35 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
       }}>
         <div style={card}>
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, letterSpacing: "0.08em", color: "#f0f4ff", marginBottom: 4 }}>
+            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, letterSpacing: "0.08em", color: "var(--text)", marginBottom: 4 }}>
               {`O${T}YIN YARATISH`}
             </div>
-            <div style={{ fontSize: 12, color: "#8899aa" }}>Sozlamalarni kiriting va o{T}yinni boshlang</div>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Sozlamalarni kiriting va o{T}yinni boshlang</div>
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <Label>Boshlovchi ismi <span style={{ color: "#e63946" }}>*</span></Label>
+            <Label>Boshlovchi ismi <span style={{ color: "var(--red)" }}>*</span></Label>
             <Input
               value={hostName}
               onChange={e => { setHostName(e.target.value); if (e.target.value.trim()) setHostError(""); }}
               placeholder="Ismingizni kiriting"
-              style={hostError ? { borderColor: "#e63946" } : {}}
+              style={hostError ? { borderColor: "var(--red)" } : {}}
             />
-            {hostError && <div style={{ fontSize: 11, color: "#e63946", marginTop: 5 }}>⚠ {hostError}</div>}
+            {hostError && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 5 }}>⚠ {hostError}</div>}
           </div>
 
           <div style={{ marginBottom: 12 }}>
             <Label>Raundlar soni</Label>
             <Input value={rounds} onChange={e => setRounds(e.target.value)} type="number" placeholder="0 = cheksiz" />
-            <div style={{ fontSize: 10, color: "#8899aa", marginTop: 4 }}>0 = cheksiz o{T}yin</div>
+            <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 4 }}>0 = cheksiz o{T}yin</div>
           </div>
 
-          <div style={{ borderTop: "1px solid #1e2940", marginBottom: 4 }}>
+          <div style={{ borderTop: "1px solid var(--border)", marginBottom: 4 }}>
             <SectionToggle label="Sozlamalar" extra={settingsSummary} isOpen={settingsOpen} onToggle={() => setSettingsOpen(o => !o)} />
             {settingsOpen && <SettingsPanel settings={settings} onChange={setSettings} />}
           </div>
 
-          <div style={{ borderTop: "1px solid #1e2940", marginBottom: 16 }}>
+          <div style={{ borderTop: "1px solid var(--border)", marginBottom: 16 }}>
             <SectionToggle
               label="Mavzular"
               extra={topicCount > 0 ? `— ${topicCount} ta mavzu · ixtiyoriy` : "— ixtiyoriy"}
@@ -130,16 +135,16 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
                   onChange={e => setTopics(e.target.value)}
                   placeholder={`Tarix\nGeografiya\nFan va texnologiya\nMusiqa\nSport`}
                   style={{
-                    background: "#1e2940", border: "2px solid #445566",
-                    color: "#f0f4ff", fontFamily: "inherit", fontSize: 12,
+                    background: "var(--bg-input)", border: "2px solid var(--border-input)",
+                    color: "var(--text)", fontFamily: "inherit", fontSize: 12,
                     borderRadius: 4, padding: "10px 12px", width: "100%",
                     minHeight: 100, resize: "vertical", outline: "none",
                     boxSizing: "border-box", marginTop: 6,
                   }}
-                  onFocus={e => (e.target.style.borderColor = "#f5c800")}
-                  onBlur={e => (e.target.style.borderColor = "#445566")}
+                  onFocus={e => (e.target.style.borderColor = "var(--accent)")}
+                  onBlur={e => (e.target.style.borderColor = "var(--border-input)")}
                 />
-                <div style={{ fontSize: 10, color: "#8899aa", marginTop: 4 }}>Har qatorda bitta mavzu</div>
+                <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 4 }}>Har qatorda bitta mavzu</div>
               </div>
             )}
           </div>
@@ -150,14 +155,14 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
 
         <div style={card}>
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, letterSpacing: "0.08em", color: "#f0f4ff", marginBottom: 4 }}>
+            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, letterSpacing: "0.08em", color: "var(--text)", marginBottom: 4 }}>
               {`O${T}YINGA QO${T}SHILISH`}
             </div>
-            <div style={{ fontSize: 12, color: "#8899aa" }}>Ism va o{T}yin kodini kiriting</div>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Ism va o{T}yin kodini kiriting</div>
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <Label>Ismingiz <span style={{ color: "#e63946" }}>*</span></Label>
+            <Label>Ismingiz <span style={{ color: "var(--red)" }}>*</span></Label>
             <Input
               value={playerName}
               onChange={e => { setPlayerName(e.target.value); if (e.target.value.trim()) setPlayerError(""); }}
@@ -176,16 +181,16 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
             />
           </div>
 
-          {playerError && <div style={{ fontSize: 11, color: "#e63946", marginBottom: 8 }}>⚠ {playerError}</div>}
-          {errorMsg && <div style={{ fontSize: 11, color: "#e63946", marginBottom: 8, padding: "6px 10px", background: "rgba(230,57,70,0.1)", borderRadius: 4, border: "1px solid rgba(230,57,70,0.3)" }}>⚠ {errorMsg}</div>}
+          {playerError && <div style={{ fontSize: 11, color: "var(--red)", marginBottom: 8 }}>⚠ {playerError}</div>}
+          {errorMsg && <div style={{ fontSize: 11, color: "var(--red)", marginBottom: 8, padding: "6px 10px", background: "var(--red-bg)", borderRadius: 4, border: "1px solid var(--red)" }}>⚠ {errorMsg}</div>}
           <div style={{ flex: 1 }} />
           <Btn variant="green" style={{ width: "100%" }} onClick={handlePlayer}>{`QO${T}SHILISH`}</Btn>
         </div>
       </div>
 
       <div style={{ textAlign: "center", paddingBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "#2ecc71" : "#e63946", boxShadow: connected ? "0 0 6px #2ecc71" : "0 0 6px #e63946", display: "inline-block" }} />
-        <span style={{ fontSize: 11, color: "#8899aa" }}>{connected ? "Server bilan ulanildi" : "Server bilan aloqa yo\u2018q"}</span>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "var(--green)" : "var(--red)", boxShadow: connected ? "0 0 6px var(--green)" : "0 0 6px var(--red)", display: "inline-block" }} />
+        <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{connected ? "Server bilan ulanildi" : "Server bilan aloqa yo\u2018q"}</span>
       </div>
     </div>
   );

@@ -3,12 +3,12 @@ export function Input({ value, onChange, placeholder, type = "text", style = {},
     <input
       type={type} value={value} onChange={onChange} placeholder={placeholder}
       style={{
-        background: "#1e2940", border: "2px solid #445566", color: "#f0f4ff",
+        background: "var(--bg-input)", border: "2px solid var(--border-input)", color: "var(--text)",
         fontFamily: "inherit", fontSize: 14, borderRadius: 4, padding: "11px 14px",
         width: "100%", outline: "none", boxSizing: "border-box", ...style
       }}
-      onFocus={e => (e.target.style.borderColor = "#f5c800")}
-      onBlur={e => (e.target.style.borderColor = "#445566")}
+      onFocus={e => (e.target.style.borderColor = "var(--accent)")}
+      onBlur={e => (e.target.style.borderColor = "var(--border-input)")}
       {...rest}
     />
   );

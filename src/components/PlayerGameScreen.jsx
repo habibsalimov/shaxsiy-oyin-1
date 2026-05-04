@@ -12,10 +12,11 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   const [imgLoaded, setImgLoaded] = useState(null);
 
   // ─── Derive everything from gameState ─────────────────────────────────────
-  const myId = getSocketId() || "";
+  const mySocketId = getSocketId() || "";
   const players = gameState?.players || [];
-  const myPlayer = players.find(p => p.socketId === myId);
-  const nominals = gameState?.settings?.nominals || [10,20,30,40,50];
+  const myPlayer = players.find(p => p.socketId === mySocketId);
+  const myPlayerId = myPlayer?.id || "";
+  const nominals = gameState?.settings?.nominals || [10, 20, 30, 40, 50];
   const topicNominals = gameState?.topicNominals || [];
   const topicScores = gameState?.topicScores || [];
   const topicNames = gameState?.topicNames || [];
@@ -33,13 +34,13 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   // ─── Falstart support ────────────────────────────────────────────────────
   const falstartEnabled = gameState?.settings?.falstart;
   const falstartBlocked = gameState?.falstartBlocked || [];
-  const isFalstartBlocked = falstartBlocked.includes(myId);
+  const isFalstartBlocked = falstartBlocked.includes(myPlayerId);
 
   // ─── Check if already answered wrong on current cell ────────────────────
   const cellData = gameState?.cellData || {};
   const attachments = attachmentsProp || {};
   const alreadyWrong = activeCell
-    ? (cellData[`${activeCell.ti}-${activeCell.ni}`]?.history || []).some(h => h.playerId === myId && h.result === "wrong")
+    ? (cellData[`${activeCell.ti}-${activeCell.ni}`]?.history || []).some(h => h.playerId === myPlayerId && h.result === "wrong")
     : false;
 
   // ─── Cell lock ──────────────────────────────────────────────────────────
@@ -47,30 +48,30 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
 
   // ─── Blocked player ───────────────────────────────────────────────────
   const blockedPlayers = gameState?.blockedPlayers || [];
-  const isBlocked = blockedPlayers.includes(myId);
+  const isBlocked = blockedPlayers.includes(myPlayerId);
 
   // ─── Derive phase ─────────────────────────────────────────────────────────
-  const myBuzzed = buzzOrder.some(b => b.socketId === myId);
+  const myBuzzed = buzzOrder.some(b => b.playerId === myPlayerId);
   const phase = !activeCell ? "waiting"
     : isBlocked ? "blocked"
-    : cellLocked ? "locked"
-    : isFalstartBlocked ? "falstart"
-    : alreadyWrong ? "answered-wrong"
-    : timerEnd ? "active"
-    : myBuzzed ? "buzzed"
-    : buzzOrder.length > 0 ? "active"
-    : "pre-timer";
+      : cellLocked ? "locked"
+        : isFalstartBlocked ? "falstart"
+          : alreadyWrong ? "answered-wrong"
+            : timerEnd ? "active"
+              : myBuzzed ? "buzzed"
+                : buzzOrder.length > 0 ? "active"
+                  : "pre-timer";
 
   // ─── Compute totals (memoized) ──────────────────────────────────────────
   const grandTotals = useMemo(() =>
     players.map(p => ({
-      ...p, total: topicScores.reduce((sum, ts, idx) => sum + getTotal(ts, p.socketId, topicNominals[idx] || nominals), 0),
+      ...p, total: topicScores.reduce((sum, ts, idx) => sum + getTotal(ts, p.id, topicNominals[idx] || nominals), 0),
     })).sort((a, b) => b.total - a.total),
     [players, topicScores, nominals, topicNominals]
   );
 
-  const myTotal = grandTotals.find(p => p.socketId === myId)?.total ?? 0;
-  const myRank  = grandTotals.findIndex(p => p.socketId === myId) + 1;
+  const myTotal = grandTotals.find(p => p.id === myPlayerId)?.total ?? 0;
+  const myRank = grandTotals.findIndex(p => p.id === myPlayerId) + 1;
 
   // ─── Real buzz via socket ─────────────────────────────────────────────────
   const handleBuzz = useCallback(() => {
@@ -94,8 +95,8 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
     return () => window.removeEventListener("keydown", handler);
   }, [handleBuzz]);
 
-  const myPosition = buzzOrder.findIndex(b => b.socketId === myId);
-  const iAmFirst   = myPosition === 0;
+  const myPosition = buzzOrder.findIndex(b => b.playerId === myPlayerId);
+  const iAmFirst = myPosition === 0;
 
   const toggleDetail = (ti) => setExpandedDetail(prev => {
     const next = new Set(prev);
@@ -109,8 +110,8 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
       <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 32, marginBottom: 12, animation: "pulse 1s ease infinite alternate" }}>{"\u23F3"}</div>
-          <div style={{ color: "#8899aa", fontSize: 14 }}>Kutilmoqda...</div>
-          <div style={{ color: "#445566", fontSize: 11, marginTop: 6 }}>Server bilan ulanish kutilmoqda</div>
+          <div style={{ color: "var(--text-secondary)", fontSize: 14 }}>Kutilmoqda...</div>
+          <div style={{ color: "var(--text-muted)", fontSize: 11, marginTop: 6 }}>Server bilan ulanish kutilmoqda</div>
         </div>
       </div>
     );
@@ -118,20 +119,20 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: "1px solid #1e2940", background: "rgba(17,24,39,0.97)" }}>
+      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: "1px solid var(--border)", background: "var(--header-bg)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, letterSpacing: "0.1em", color: "#f5c800" }}>{`SHAXSIY O${T}YIN`}</span>
-          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 12, color: "#8899aa" }}>{roomCode}</span>
+          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, letterSpacing: "0.1em", color: "var(--accent)" }}>{`SHAXSIY O${T}YIN`}</span>
+          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 12, color: "var(--text-secondary)" }}>{roomCode}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, color: myTotal >= 0 ? "#f5c800" : "#e63946" }}>{myTotal > 0 ? "+" : ""}{myTotal}</span>
-          <span style={{ fontSize: 10, color: "#445566" }}>#{myRank || "-"}</span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#1e2940", borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 600 }}>{myPlayer?.name || "..."}</span>
+          <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, color: myTotal >= 0 ? "var(--accent)" : "var(--red)" }}>{myTotal > 0 ? "+" : ""}{myTotal}</span>
+          <span style={{ fontSize: 10, color: "var(--text-muted)" }}>#{myRank || "-"}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--bg-input)", borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 600 }}>{myPlayer?.name || "..."}</span>
         </div>
       </div>
 
       {!hostConnected && (
-        <div style={{ background: "rgba(243,156,18,0.12)", borderBottom: "1px solid rgba(243,156,18,0.3)", padding: "8px 16px", textAlign: "center", fontSize: 12, color: "#f39c12", fontWeight: 600 }}>
+        <div style={{ background: "var(--orange-bg)", borderBottom: "1px solid var(--orange)", padding: "8px 16px", textAlign: "center", fontSize: 12, color: "var(--orange)", fontWeight: 600 }}>
           ⚠ Boshlovchi bilan aloqa uzildi. Qayta ulanishini kuting...
         </div>
       )}
@@ -150,7 +151,7 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
               {att.image && (
                 <>
                   {!isImgReady && (
-                    <div style={{ width: "100%", height: 140, borderRadius: 6, background: "linear-gradient(90deg, #1e2940 25%, #253350 50%, #1e2940 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s ease infinite", marginBottom: att.text ? 8 : 0 }} />
+                    <div style={{ width: "100%", height: 140, borderRadius: 6, background: "linear-gradient(90deg, var(--bg-input) 25%, var(--bg-section-open) 50%, var(--bg-input) 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.5s ease infinite", marginBottom: att.text ? 8 : 0 }} />
                   )}
                   <img src={att.image} alt="" onClick={() => setLightboxSrc(att.image)}
                     onLoad={() => setImgLoaded(activeCellKey)}
@@ -158,7 +159,7 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
                 </>
               )}
               {att.text && (
-                <div style={{ background: "#1e2940", borderRadius: 6, padding: "12px 14px", fontSize: 14, color: "#f0f4ff", lineHeight: 1.5, textAlign: "center", animation: "fadeIn 0.3s ease both" }}>{att.text}</div>
+                <div style={{ background: "var(--bg-input)", borderRadius: 6, padding: "12px 14px", fontSize: 14, color: "var(--text)", lineHeight: 1.5, textAlign: "center", animation: "fadeIn 0.3s ease both" }}>{att.text}</div>
               )}
             </div>
           );
@@ -171,44 +172,44 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
         )}
 
         {phase === "buzzed" && iAmFirst && (
-          <div style={{ background: "rgba(46,204,113,0.2)", border: "2px solid #2ecc71", borderRadius: 4, padding: 14, textAlign: "center", animation: "pulse 0.8s ease infinite alternate", marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 26, color: "#2ecc71" }}>{"\uD83C\uDFA4"} JAVOB BERING!</div>
+          <div style={{ background: "var(--green-bg-strong)", border: "2px solid var(--green)", borderRadius: 4, padding: 14, textAlign: "center", animation: "pulse 0.8s ease infinite alternate", marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 26, color: "var(--green)" }}>{"\uD83C\uDFA4"} JAVOB BERING!</div>
           </div>
         )}
         {phase === "buzzed" && !iAmFirst && myPosition >= 0 && (
-          <div style={{ background: "rgba(245,200,0,0.08)", border: "1px solid #c9a200", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
-            <span style={{ fontSize: 13, color: "#f5c800" }}>Siz {myPosition + 1}-o'rindasiz {"\xb7"} +{Math.abs(buzzOrder[myPosition].effectiveTime - buzzOrder[0].effectiveTime)}ms</span>
+          <div style={{ background: "var(--accent-bg)", border: "1px solid var(--accent-dim)", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: 13, color: "var(--accent)" }}>Siz {myPosition + 1}-o'rindasiz {"\xb7"} +{Math.abs(buzzOrder[myPosition].effectiveTime - buzzOrder[0].effectiveTime)}ms</span>
           </div>
         )}
         {phase === "falstart" && (
-          <div style={{ background: "rgba(230,57,70,0.15)", border: "2px solid #e63946", borderRadius: 4, padding: 14, textAlign: "center", marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, color: "#e63946" }}>{"\u26A1"} FALSTART!</div>
-            <div style={{ fontSize: 12, color: "#e63946", marginTop: 4 }}>Bu savolga javob bera olmaysiz</div>
+          <div style={{ background: "var(--red-bg-strong)", border: "2px solid var(--red)", borderRadius: 4, padding: 14, textAlign: "center", marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, color: "var(--red)" }}>{"\u26A1"} FALSTART!</div>
+            <div style={{ fontSize: 12, color: "var(--red)", marginTop: 4 }}>Bu savolga javob bera olmaysiz</div>
           </div>
         )}
         {phase === "answered-wrong" && (
-          <div style={{ background: "rgba(230,57,70,0.1)", border: "1px solid rgba(230,57,70,0.3)", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
-            <span style={{ fontSize: 13, color: "#e63946" }}>{"\u2717"} Siz bu savolga javob berdingiz</span>
+          <div style={{ background: "var(--red-bg)", border: "1px solid var(--red)", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: 13, color: "var(--red)" }}>{"\u2717"} Siz bu savolga javob berdingiz</span>
           </div>
         )}
         {phase === "blocked" && (
-          <div style={{ background: "rgba(230,57,70,0.15)", border: "2px solid #e63946", borderRadius: 4, padding: 14, textAlign: "center", marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, color: "#e63946" }}>{"\uD83D\uDEAB"} BLOKDASIZ</div>
-            <div style={{ fontSize: 12, color: "#e63946", marginTop: 4 }}>Boshlovchi sizni bloklagan</div>
+          <div style={{ background: "var(--red-bg-strong)", border: "2px solid var(--red)", borderRadius: 4, padding: 14, textAlign: "center", marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 22, color: "var(--red)" }}>{"\uD83D\uDEAB"} BLOKDASIZ</div>
+            <div style={{ fontSize: 12, color: "var(--red)", marginTop: 4 }}>Boshlovchi sizni bloklagan</div>
           </div>
         )}
         {phase === "locked" && (
-          <div style={{ background: "rgba(243,156,18,0.1)", border: "1px solid rgba(243,156,18,0.3)", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
-            <span style={{ fontSize: 13, color: "#f39c12" }}>{"\uD83D\uDD12"} Savol bloklangan</span>
+          <div style={{ background: "var(--orange-bg)", border: "1px solid var(--orange)", borderRadius: 4, padding: 10, textAlign: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: 13, color: "var(--orange)" }}>{"\uD83D\uDD12"} Savol bloklangan</span>
           </div>
         )}
         {phase === "pre-timer" && (
-          <div style={{ textAlign: "center", color: "#f5c800", fontSize: 13, marginBottom: 12 }}>
+          <div style={{ textAlign: "center", color: "var(--accent)", fontSize: 13, marginBottom: 12 }}>
             {"\u23F3"} Taymer hali boshlanmagan {"\xb7"} Bosishingiz mumkin
           </div>
         )}
         {phase === "waiting" && !activeCell && (
-          <div style={{ textAlign: "center", color: "#8899aa", fontSize: 13, marginBottom: 12 }}>
+          <div style={{ textAlign: "center", color: "var(--text-secondary)", fontSize: 13, marginBottom: 12 }}>
             {"\u23F3"} Boshlovchi savolni tayyorlamoqda...
           </div>
         )}
@@ -223,18 +224,18 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
               disabled={phase !== "active" && phase !== "pre-timer"}
               style={{
                 width: 170, height: 170, borderRadius: "50%",
-                border: `5px solid ${phase === "blocked" ? "#e63946" : phase === "locked" ? "#f39c12" : (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : phase === "buzzed" && iAmFirst ? "#2ecc71" : myBuzzed ? "#445566" : "#f5c800"}`,
-                background: phase === "blocked" ? "rgba(230,57,70,0.15)" : phase === "locked" ? "rgba(243,156,18,0.1)" : (phase === "falstart" || phase === "answered-wrong") ? "rgba(230,57,70,0.15)" : phase === "buzzed" && iAmFirst ? "#2ecc71" : pressing ? "#f5c800" : "#1e2940",
-                color: phase === "blocked" ? "#e63946" : phase === "locked" ? "#f39c12" : (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : (pressing || (phase === "buzzed" && iAmFirst)) ? "#0a0e1a" : myBuzzed ? "#445566" : "#f5c800",
+                border: `5px solid ${phase === "blocked" ? "var(--red)" : phase === "locked" ? "var(--orange)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red)" : phase === "buzzed" && iAmFirst ? "var(--green)" : myBuzzed ? "var(--border-input)" : "var(--accent)"}`,
+                background: phase === "blocked" ? "var(--red-bg-strong)" : phase === "locked" ? "var(--orange-bg)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red-bg-strong)" : phase === "buzzed" && iAmFirst ? "var(--green)" : pressing ? "var(--accent)" : "var(--bg-input)",
+                color: phase === "blocked" ? "var(--red)" : phase === "locked" ? "var(--orange)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red)" : (pressing || (phase === "buzzed" && iAmFirst)) ? "var(--bg)" : myBuzzed ? "var(--border-input)" : "var(--accent)",
                 fontFamily: "'Anton', sans-serif", fontSize: 30, letterSpacing: "0.08em",
                 cursor: (phase === "active" || phase === "pre-timer") && !myBuzzed ? "pointer" : "default",
                 transition: "all 0.1s", transform: pressing ? "scale(0.92)" : "scale(1)",
-                boxShadow: phase === "active" && !myBuzzed ? "0 0 40px rgba(245,200,0,0.15)" : phase === "pre-timer" ? "0 0 30px rgba(245,200,0,0.08)" : phase === "buzzed" && iAmFirst ? "0 0 50px rgba(46,204,113,0.5)" : "none",
+                boxShadow: phase === "active" && !myBuzzed ? "0 0 40px var(--accent-glow)" : phase === "pre-timer" ? "0 0 30px var(--accent-glow)" : phase === "buzzed" && iAmFirst ? "0 0 50px rgba(46,204,113,0.5)" : "none",
                 userSelect: "none",
               }}>
               {phase === "blocked" ? "\uD83D\uDEAB" : phase === "locked" ? "\uD83D\uDD12" : phase === "falstart" ? "\u26A1" : phase === "answered-wrong" ? "\u2717" : phase === "buzzed" && iAmFirst ? "\uD83C\uDFA4" : myBuzzed ? "\u2713" : "JAVOB"}
             </button>
-            <div style={{ marginTop: 10, fontSize: 11, color: phase === "blocked" ? "#e63946" : phase === "locked" ? "#f39c12" : (phase === "falstart" || phase === "answered-wrong") ? "#e63946" : "#8899aa" }}>
+            <div style={{ marginTop: 10, fontSize: 11, color: phase === "blocked" ? "var(--red)" : phase === "locked" ? "var(--orange)" : (phase === "falstart" || phase === "answered-wrong") ? "var(--red)" : "var(--text-secondary)" }}>
               {phase === "blocked" ? "Blokdasiz" : phase === "locked" ? "Savol bloklangan" : phase === "falstart" ? "Falstart! Bu savolda javob bera olmaysiz" : phase === "answered-wrong" ? "Siz bu savolga javob berdingiz" : phase === "active" ? "Bosing yoki SPACE" : phase === "pre-timer" ? "Taymer kutilmoqda \xb7 Bosing yoki SPACE" : myBuzzed ? "Siz bosdingiz!" : phase === "answering" ? "Javob kutilmoqda..." : "Kutilmoqda..."}
             </div>
           </div>
@@ -242,38 +243,38 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
 
         {buzzOrder.length > 0 && (
           <div style={{ maxWidth: 340, margin: "0 auto 14px", width: "100%" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#8899aa", marginBottom: 6, textTransform: "uppercase" }}>Javob tartibi</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "var(--text-secondary)", marginBottom: 6, textTransform: "uppercase" }}>Javob tartibi</div>
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {buzzOrder.map((b, i) => (
-                <li key={b.socketId} style={{
+                <li key={b.playerId} style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 4, marginBottom: 5,
-                  background: i === 0 ? "rgba(230,57,70,0.18)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${b.socketId === myId ? "#f5c800" : i === 0 ? "#e63946" : "transparent"}`,
+                  background: i === 0 ? "var(--red-bg-strong)" : "var(--row-hover)",
+                  border: `1px solid ${b.playerId === myPlayerId ? "var(--accent)" : i === 0 ? "var(--red)" : "transparent"}`,
                   fontWeight: 600,
                 }}>
-                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: i === 0 ? "#e63946" : "#8899aa", minWidth: 20 }}>{i + 1}</span>
-                  <span style={{ flex: 1, fontSize: 13 }}>{b.name}{b.socketId === myId && <span style={{ fontSize: 10, color: "#8899aa", marginLeft: 5 }}>(Siz)</span>}</span>
-                  {i > 0 && <span style={{ fontSize: 10, color: "#8899aa" }}>+{Math.abs(b.effectiveTime - buzzOrder[0].effectiveTime)}ms</span>}
+                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 16, color: i === 0 ? "var(--red)" : "var(--text-secondary)", minWidth: 20 }}>{i + 1}</span>
+                  <span style={{ flex: 1, fontSize: 13 }}>{b.name}{b.playerId === myPlayerId && <span style={{ fontSize: 10, color: "var(--text-secondary)", marginLeft: 5 }}>(Siz)</span>}</span>
+                  {i > 0 && <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>+{Math.abs(b.effectiveTime - buzzOrder[0].effectiveTime)}ms</span>}
                 </li>
               ))}
             </ul>
           </div>
         )}
 
-        <div style={{ borderTop: "1px solid #1e2940", paddingTop: 12, marginBottom: 12 }}>
-          <div style={{ fontSize: 10, color: "#8899aa", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase", textAlign: "center" }}>Umumiy hisob</div>
-          <div style={{ border: "1px solid #1e2940", borderRadius: 6, overflow: "hidden", maxWidth: 400, margin: "0 auto" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 70px", background: "#0f1726", borderBottom: "1px solid #1e2940" }}>
+        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8, textTransform: "uppercase", textAlign: "center" }}>Umumiy hisob</div>
+          <div style={{ border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", maxWidth: 400, margin: "0 auto" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 70px", background: "var(--bg-section)", borderBottom: "1px solid var(--border)" }}>
               {["#", "O'YINCHI", "JAMI"].map((h, i) => (
-                <div key={i} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: i === 2 ? "#f5c800" : "#8899aa", textAlign: i === 2 ? "center" : "left", textTransform: "uppercase" }}>{h}</div>
+                <div key={i} style={{ padding: "7px 10px", fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: i === 2 ? "var(--accent)" : "var(--text-secondary)", textAlign: i === 2 ? "center" : "left", textTransform: "uppercase" }}>{h}</div>
               ))}
             </div>
             {grandTotals.map((p, i) => (
-              <div key={p.socketId} style={{ display: "grid", gridTemplateColumns: "32px 1fr 70px", background: p.socketId === myId ? "rgba(245,200,0,0.06)" : "transparent", borderBottom: i < grandTotals.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                <div style={{ padding: "9px 10px", fontFamily: "'Anton', sans-serif", fontSize: 13, color: i === 0 ? "#f5c800" : "#445566" }}>{i === 0 ? "\uD83E\uDD47" : i === 1 ? "\uD83E\uDD48" : i === 2 ? "\uD83E\uDD49" : `${i+1}`}</div>
-                <div style={{ padding: "9px 10px", fontWeight: 600, fontSize: 13, color: p.socketId === myId ? "#f5c800" : "#f0f4ff" }}>{p.name}{p.socketId === myId && <span style={{ fontSize: 10, color: "#8899aa", marginLeft: 5 }}>(Siz)</span>}</div>
+              <div key={p.id} style={{ display: "grid", gridTemplateColumns: "32px 1fr 70px", background: p.id === myPlayerId ? "var(--accent-bg-subtle)" : "transparent", borderBottom: i < grandTotals.length - 1 ? "1px solid var(--row-border)" : "none" }}>
+                <div style={{ padding: "9px 10px", fontFamily: "'Anton', sans-serif", fontSize: 13, color: i === 0 ? "var(--accent)" : "var(--text-muted)" }}>{i === 0 ? "\uD83E\uDD47" : i === 1 ? "\uD83E\uDD48" : i === 2 ? "\uD83E\uDD49" : `${i + 1}`}</div>
+                <div style={{ padding: "9px 10px", fontWeight: 600, fontSize: 13, color: p.id === myPlayerId ? "var(--accent)" : "var(--text)" }}>{p.name}{p.id === myPlayerId && <span style={{ fontSize: 10, color: "var(--text-secondary)", marginLeft: 5 }}>(Siz)</span>}</div>
                 <div style={{ padding: "9px 10px", textAlign: "center" }}>
-                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 15, color: p.total >= 0 ? "#f5c800" : "#e63946" }}>{p.total > 0 ? "+" : ""}{p.total}</span>
+                  <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 15, color: p.total >= 0 ? "var(--accent)" : "var(--red)" }}>{p.total > 0 ? "+" : ""}{p.total}</span>
                 </div>
               </div>
             ))}
@@ -282,11 +283,11 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {topicScores.map((tScores, ti) => (
-            <div key={ti} style={{ border: "1px solid #1e2940", borderRadius: 6, overflow: "hidden" }}>
-              <div onClick={() => toggleDetail(ti)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", cursor: "pointer", userSelect: "none", background: expandedDetail.has(ti) ? "#161f30" : "#0f1726", borderBottom: expandedDetail.has(ti) ? "1px solid #1e2940" : "none" }}>
-                <span style={{ fontSize: 10, color: "#445566", transition: "transform 0.2s", display: "inline-block", transform: expandedDetail.has(ti) ? "rotate(90deg)" : "rotate(0deg)" }}>{"\u25B6"}</span>
-                <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 12, letterSpacing: "0.06em", color: "#8899aa", flex: 1 }}>{ti + 1}. {topicNames[ti] || `${ti+1}-mavzu`}</span>
-                <span style={{ fontSize: 10, color: "#445566" }}>batafsil</span>
+            <div key={ti} style={{ border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
+              <div onClick={() => toggleDetail(ti)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", cursor: "pointer", userSelect: "none", background: expandedDetail.has(ti) ? "var(--bg-section-open)" : "var(--bg-section)", borderBottom: expandedDetail.has(ti) ? "1px solid var(--border)" : "none" }}>
+                <span style={{ fontSize: 10, color: "var(--text-muted)", transition: "transform 0.2s", display: "inline-block", transform: expandedDetail.has(ti) ? "rotate(90deg)" : "rotate(0deg)" }}>{"\u25B6"}</span>
+                <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 12, letterSpacing: "0.06em", color: "var(--text-secondary)", flex: 1 }}>{ti + 1}. {topicNames[ti] || `${ti + 1}-mavzu`}</span>
+                <span style={{ fontSize: 10, color: "var(--text-muted)" }}>batafsil</span>
               </div>
               {expandedDetail.has(ti) && (
                 <ScoreBoard scores={tScores} players={players} nominals={topicNominals[ti] || nominals} currentNominal={null} isHost={false} allTopicScores={topicScores} topicNominals={topicNominals} />

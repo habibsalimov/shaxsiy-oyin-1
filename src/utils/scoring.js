@@ -29,8 +29,8 @@ export function rebuildSnapshots(topicScores, nominals) {
 export function initScores(players, nominals) {
   const s = {};
   players.forEach(p => {
-    s[p.socketId] = {};
-    nominals.forEach(n => { s[p.socketId][n] = null; });
+    s[p.id] = {};
+    nominals.forEach(n => { s[p.id][n] = null; });
   });
   return s;
 }

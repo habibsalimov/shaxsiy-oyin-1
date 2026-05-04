@@ -12,12 +12,12 @@ export function Btn({ children, variant = "primary", size = "md", onClick, disab
     lg: { fontSize: 16, padding: "15px 34px" },
   };
   const variants = {
-    primary:   { background: "#f5c800", color: "#0a0e1a" },
-    secondary: { background: "transparent", color: "#f0f4ff", border: "2px solid #445566" },
-    success:   { background: "#2ecc71", color: "#0a0e1a" },
-    danger:    { background: "#e63946", color: "#fff" },
-    ghost:     { background: "#1e2940", color: "#f0f4ff" },
-    green:     { background: "#2ecc71", color: "#0a0e1a" },
+    primary: { background: "var(--accent)", color: "var(--bg)" },
+    secondary: { background: "transparent", color: "var(--text)", border: "2px solid var(--border-input)" },
+    success: { background: "var(--green)", color: "var(--bg)" },
+    danger: { background: "var(--red)", color: "#fff" },
+    ghost: { background: "var(--bg-input)", color: "var(--text)" },
+    green: { background: "var(--green)", color: "var(--bg)" },
   };
   return (
     <button style={{ ...base, ...sizes[size], ...variants[variant], ...style }}
