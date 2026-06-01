@@ -472,11 +472,6 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
               {copied ? "\u2713" : (roomCode || "...")}
             </span>
           </button>
-          {showHeaderLabels && (
-            <span style={{ fontSize: 10, fontWeight: 900, color: "var(--text-secondary)", letterSpacing: "0.12em", textTransform: "uppercase", padding: "0 2px" }}>
-              Asboblar
-            </span>
-          )}
           <button onClick={toggleLockRoom} style={headerToolStyle(roomLocked)} title={roomLocked ? "Xona qulflangan" : "Xonani qulflash"}>
             {roomLocked ? "\uD83D\uDD12" : "\uD83D\uDD13"}
           </button>
@@ -685,8 +680,8 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                 <div key={ti} style={{ marginBottom: 2 }}>
                   <div style={{
                     display: "flex", alignItems: "center", gap: 8, padding: "9px 14px",
-                    borderLeft: isTopicActive ? "3px solid var(--accent)" : "3px solid transparent",
-                    background: isTopicActive ? "var(--accent-bg)" : expandedTopics.has(ti) ? "var(--bg-section-open)" : "var(--bg-section)",
+                    borderLeft: isTopicActive ? "3px solid var(--active-ring)" : "3px solid transparent",
+                    background: isTopicActive ? "var(--active-band)" : expandedTopics.has(ti) ? "var(--bg-section-open)" : "var(--bg-section)",
                     borderBottom: "1px solid var(--border)", cursor: "pointer", userSelect: "none",
                   }} onClick={() => toggleTopic(ti)}>
                     <span style={{ fontSize: 11, color: "var(--text-muted)", flexShrink: 0, transition: "transform 0.2s", display: "inline-block", transform: expandedTopics.has(ti) ? "rotate(90deg)" : "rotate(0deg)" }}>{"\u25B6"}</span>
@@ -729,7 +724,7 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
                           display: "flex", alignItems: "center", gap: 10, padding: "9px 16px 9px 28px",
                           cursor: "pointer",
                           background: isActive ? "var(--accent-bg-subtle)" : "transparent",
-                          borderLeft: isActive ? "3px solid var(--accent)" : "3px solid transparent",
+                          borderLeft: isActive ? "3px solid var(--active-ring)" : "3px solid transparent",
                           transition: "background 0.1s",
                           opacity: !isDone && !isCellAllowed(ti, ni) ? 0.35 : 1,
                         }}
@@ -988,9 +983,9 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
               const activeNomForPanel = isCurrentTopic && activeCell ? panelNominals[activeCell.ni] : null;
 
               return (
-                <div key={scorePanelTi} style={{ marginBottom: 12, border: `1px solid ${isCurrentTopic ? "rgba(245,200,0,0.3)" : "var(--bg-input)"}`, borderRadius: 6, overflow: "hidden" }}>
+                <div key={scorePanelTi} style={{ marginBottom: 12, border: `${isCurrentTopic ? "2px" : "1px"} solid ${isCurrentTopic ? "var(--active-ring)" : "var(--border)"}`, borderRadius: 6, overflow: "hidden" }}>
                   <div onClick={() => toggleScorePanel(scorePanelTi)}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", cursor: "pointer", userSelect: "none", background: isCurrentTopic ? "var(--accent-bg-subtle)" : "var(--bg-section)", borderBottom: isCollapsed ? "none" : "1px solid var(--border)" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", cursor: "pointer", userSelect: "none", background: isCurrentTopic ? "var(--active-band)" : "var(--bg-section)", borderBottom: isCollapsed ? "none" : "1px solid var(--border)" }}>
                     <span style={{ fontSize: 11, color: "var(--text-muted)", display: "inline-block", transition: "transform 0.2s", transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)" }}>{"\u25B6"}</span>
                     <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 13, letterSpacing: "0.06em", color: isCurrentTopic ? "var(--accent)" : "var(--text-secondary)", flex: 1 }}>
                       {scorePanelTi + 1}. {topicNames[scorePanelTi] || `${scorePanelTi + 1}-mavzu`}

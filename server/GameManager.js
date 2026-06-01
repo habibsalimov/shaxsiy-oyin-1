@@ -571,7 +571,7 @@ export class GameManager {
       if (room.settings.queuedAnswers === false) {
         room.buzzOrder = [];
         clearTimeout(room.timerTimeout);
-        if (this._hasEligibleBuzzers(room, ti, ni)) {
+        if (room.timerHeldByBuzz && this._hasEligibleBuzzers(room, ti, ni)) {
           const ms = room.settings.timer * 1000;
           room.timerEnd = Date.now() + ms;
           room.timerPausedRemaining = null;
@@ -593,6 +593,12 @@ export class GameManager {
           room.timerHeldByBuzz = false;
           room.timerStarted = true;
           return { room, timerEnd: room.timerEnd, ti, ni, ms };
+        }
+
+        // Timer was never started yet and there are still eligible buzzers:
+        // stay on this cell so host can finish reading and start the timer.
+        if (!room.timerStarted && this._hasEligibleBuzzers(room, ti, ni)) {
+          return { room };
         }
 
         room.timerEnd = null;

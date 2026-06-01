@@ -206,9 +206,13 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
         </div>
       </div>
 
-      <div style={{ textAlign: "center", paddingBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+      <div style={{ textAlign: "center", paddingBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
         <span style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "var(--green)" : "var(--red)", boxShadow: connected ? "0 0 6px var(--green)" : "0 0 6px var(--red)", display: "inline-block" }} />
         <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{connected ? "Server bilan ulanildi" : "Server bilan aloqa yo\u2018q"}</span>
+      </div>
+
+      <div style={{ textAlign: "center", paddingBottom: 24, fontSize: 12, color: "var(--text-muted)", letterSpacing: "0.03em" }}>
+        Tizim yaratuvchisi: <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>Xushnudbek Xudayberdiyev</span>
       </div>
     </div>
   );
