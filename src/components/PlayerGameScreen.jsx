@@ -85,6 +85,10 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
   // ─── Real buzz via socket ─────────────────────────────────────────────────
   const handleBuzz = useCallback(() => {
     if ((phase !== "active" && phase !== "pre-timer") || myBuzzed || isFalstartBlocked || alreadyWrong || isBlocked) return;
+    // Haptik javob (mobil qurilmalarda) — buzz tasdiqlash uchun qisqa tebranish.
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try { navigator.vibrate(35); } catch { }
+    }
     emitEvent("buzz");
   }, [phase, myBuzzed, isFalstartBlocked, alreadyWrong, isBlocked]);
 
@@ -128,7 +132,7 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: "1px solid var(--border)", background: "var(--header-bg)" }}>
+      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "calc(10px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 10px calc(20px + env(safe-area-inset-left))", borderBottom: "1px solid var(--border)", background: "var(--header-bg)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 20, letterSpacing: "0.1em", color: "var(--accent)" }}>{`SHAXSIY O${T}YIN`}</span>
           <span style={{ fontFamily: "'Anton', sans-serif", fontSize: 12, color: "var(--text-secondary)" }}>{roomCode}</span>
@@ -152,7 +156,7 @@ export function PlayerGameScreen({ gameState, attachments: attachmentsProp }) {
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px calc(16px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))" }}>
         <div style={{ textAlign: "center", marginBottom: 12 }}>
           <Badge color="gray">{`${currentTopicIdx + 1}-MAVZU${currentNominal ? ` \xb7 ${currentNominal} BALL` : ""}`}</Badge>
           {!isGenericName && <div style={{ fontFamily: "'Anton', sans-serif", fontSize: 26, letterSpacing: "0.04em", margin: "8px 0 0" }}>{currentTopicName}</div>}

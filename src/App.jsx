@@ -36,6 +36,7 @@ import { LandingScreen } from './components/LandingScreen.jsx';
 import { HostGameScreen } from './components/HostGameScreen.jsx';
 import { PlayerGameScreen } from './components/PlayerGameScreen.jsx';
 import { ResultsScreen } from './components/ResultsScreen.jsx';
+import { InstallPrompt } from './components/InstallPrompt.jsx';
 import { playGameSound } from './utils/sounds.js';
 
 const IS_DEV = false;
@@ -216,7 +217,7 @@ export default function App() {
 
   return (
     <div style={{
-      height: "100vh", display: "flex", flexDirection: "column",
+      height: "100dvh", display: "flex", flexDirection: "column",
       background: "var(--bg)", color: "var(--text)",
       fontFamily: "'Montserrat', 'Segoe UI', sans-serif", position: "relative",
       overflow: "hidden", transition: "background 0.3s, color 0.3s",
@@ -224,7 +225,17 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@400;500;600;700;900&family=Noto+Color+Emoji&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: var(--bg); font-family: 'Montserrat', 'Segoe UI', sans-serif, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji'; transition: background 0.3s; }
+        html, body, #root { height: 100%; }
+        html { background: var(--bg); }
+        body {
+          background: var(--bg);
+          font-family: 'Montserrat', 'Segoe UI', sans-serif, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji';
+          transition: background 0.3s;
+          overscroll-behavior: none;
+          -webkit-tap-highlight-color: transparent;
+          -webkit-text-size-adjust: 100%;
+          text-size-adjust: 100%;
+        }
         @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes pulse  { from { opacity:1; } to { opacity:0.55; } }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -263,18 +274,21 @@ export default function App() {
 
       <div style={{ position: "relative", zIndex: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflowY: "auto" }}>
         {screen === "landing" && (
-          <LandingScreen
-            connected={connected}
-            onHostCreated={() => { }}
-            onPlayerJoined={() => {
-              setScreen("playerGame");
-              try {
-                const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
-                if (s?.roomCode) window.location.hash = `game/${s.roomCode}`;
-              } catch { }
-            }}
-            errorMsg={errorMsg}
-          />
+          <>
+            <LandingScreen
+              connected={connected}
+              onHostCreated={() => { }}
+              onPlayerJoined={() => {
+                setScreen("playerGame");
+                try {
+                  const s = JSON.parse(sessionStorage.getItem("game-session") || "null");
+                  if (s?.roomCode) window.location.hash = `game/${s.roomCode}`;
+                } catch { }
+              }}
+              errorMsg={errorMsg}
+            />
+            <InstallPrompt />
+          </>
         )}
         {screen === "hostGame" && (
           <HostGameScreen

@@ -81,12 +81,12 @@ export function LandingScreen({ connected, onHostCreated, onPlayerJoined, errorM
   const settingsSummary = `— taymer: ${settings.timer}s · xato: ${settings.wrongAnswerLimit || 3} · navbat: ${settings.queuedAnswers ? "yoniq" : `o${T}chiq`} · ${NOMINAL_PRESETS[settings.selectedPreset].join("/")} · falstart: ${settings.falstart ? "yoniq" : `o${T}chiq`} · ping: ${settings.latencyCompensation ? "yoniq" : `o${T}chiq`}`;
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", animation: "fadeIn 0.4s ease both" }}>
-      <div style={{ position: "absolute", top: 16, right: 16, zIndex: 10 }}>
+    <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", animation: "fadeIn 0.4s ease both" }}>
+      <div style={{ position: "absolute", top: "calc(16px + env(safe-area-inset-top))", right: "calc(16px + env(safe-area-inset-right))", zIndex: 10 }}>
         <ThemeToggle />
       </div>
 
-      <div style={{ textAlign: "center", padding: "40px 24px 28px" }}>
+      <div style={{ textAlign: "center", padding: "calc(40px + env(safe-area-inset-top)) 24px 28px" }}>
         <div style={{ marginBottom: 8 }}>
           <Badge color="yellow">Zakovat klubi bilimdonlari uchun</Badge>
         </div>

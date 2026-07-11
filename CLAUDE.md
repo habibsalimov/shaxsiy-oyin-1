@@ -108,3 +108,14 @@ Results are saved to `localStorage` via the `window.storage` adapter. Results ca
 ### Styling
 
 All components use inline `style` objects. Fonts: Anton (display) + Montserrat (body), loaded via Google Fonts CDN. Color palette: dark navy background (`#0a0e1a`), gold accent (`#f5c800`), muted blue-grays for secondary text.
+
+### PWA (installable mobile app)
+
+The app is an installable PWA (Android + iOS via "Add to Home Screen"). No build plugin — static files live in `public/` and Vite copies them to `dist/`:
+
+- `public/manifest.webmanifest` — name, icons, `display: standalone`, theme color `#0a0e1a`.
+- `public/sw.js` — service worker. **Critically bypasses `/socket.io/` and `/api/`** (real-time game must never be cached); app shell is network-first for navigation, stale-while-revalidate for static assets. Bump `CACHE_VERSION` to invalidate.
+- `public/icons/` — PNG icons (192/512 any + maskable, `apple-touch-icon.png` 180px, favicon). Regenerate via `scratchpad/gen_icons.py` (Pillow, gold buzzer on navy). SVG is not used for `apple-touch-icon` (iOS ignores it).
+- `index.html` — PWA + iOS meta tags (`viewport-fit=cover`, `apple-mobile-web-app-*`). SW is registered only on non-localhost (dev HMR stays intact).
+- `src/components/InstallPrompt.jsx` — install banner shown on LandingScreen only: native `beforeinstallprompt` on Android/Chrome, manual "Share → Add to Home Screen" guidance on iOS Safari.
+- Mobile layout uses `100dvh` and `env(safe-area-inset-*)` padding in App/Landing/Host/Player screens. Buzz triggers `navigator.vibrate(35)` haptic feedback.

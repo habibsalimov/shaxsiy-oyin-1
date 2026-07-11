@@ -442,7 +442,10 @@ export function HostGameScreen({ gameState, roomCode, attachments: attachmentsPr
       {/* Topbar */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14,
-        padding: compactHeader ? "10px 12px" : "12px 20px", borderBottom: "1px solid var(--border)",
+        padding: compactHeader
+          ? "calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 10px calc(12px + env(safe-area-inset-left))"
+          : "calc(12px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 12px calc(20px + env(safe-area-inset-left))",
+        borderBottom: "1px solid var(--border)",
         background: "var(--header-bg)", backdropFilter: "blur(8px)",
         flexShrink: 0, zIndex: 90, overflowX: "auto",
       }}>
