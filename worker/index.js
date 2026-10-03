@@ -18,6 +18,17 @@ function createValid(data) {
 }
 function stub(env, code) { return env.ROOMS.get(env.ROOMS.idFromName(code)); }
 
+export async function initializeWithRetry(env, code, data, creationId, pause = ms => new Promise(resolve => setTimeout(resolve, ms))) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { return await stub(env, code).initialize(code, data, creationId); } catch (error) {
+      // An RPC can commit before its response is lost. The same ID makes retry safe.
+      if (!error?.retryable || error.overloaded || attempt === 2) throw error;
+      await pause(100 * (2 ** attempt));
+    }
+  }
+}
+
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -28,9 +39,14 @@ export default {
       let data;
       try { const text = await request.text(); if (text.length > 32_000) return bad(); data = JSON.parse(text); } catch { return bad(); }
       if (!createValid(data)) return bad();
+      const creationId = crypto.randomUUID();
       for (let i = 0; i < 100; i++) {
         const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 10000).padStart(4, '0');
-        const result = await stub(env, code).initialize(code, data);
+        let result;
+        try { result = await initializeWithRetry(env, code, data, creationId); } catch (error) {
+          console.error(JSON.stringify({ event: 'room_creation_failed', retryable: error?.retryable === true, overloaded: error?.overloaded === true }));
+          return Response.json({ error: 'Xona yaratib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.' }, { status: 503, headers: { 'Retry-After': '1' } });
+        }
         if (result) return Response.json(result, { status: 201 });
       }
       return bad('Bo‘sh xona topilmadi', 503);
@@ -73,6 +89,8 @@ export class GameRoom extends DurableObject {
     this.gm = new GameManager({ scheduleCleanup: () => {} });
     this.room = null;
     this.queue = Promise.resolve();
+    this.scheduledAlarmAt = null;
+    this.pendingStateTimer = null;
     ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS state_chunks (id INTEGER PRIMARY KEY, data TEXT NOT NULL)');
     ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS attachment_chunks (id INTEGER PRIMARY KEY, data TEXT NOT NULL)');
     const chunks = ctx.storage.sql.exec('SELECT data FROM state_chunks ORDER BY id').toArray();
@@ -115,16 +133,24 @@ export class GameRoom extends DurableObject {
   }
 
   async schedule() {
-    if (!this.room) return this.ctx.storage.deleteAlarm();
+    if (!this.room) { this.scheduledAlarmAt = null; return this.ctx.storage.deleteAlarm(); }
     const room = this.room;
     let deadline = room.cleanupAt || room.lastActivityAt + TTL;
     if (room.timerEnd) deadline = Math.min(deadline, room.timerEnd);
     if (room.pendingResult) deadline = Math.min(deadline, Date.now() + 10000);
-    await this.ctx.storage.setAlarm(Math.max(Date.now() + 1, deadline));
+    deadline = Math.max(Date.now() + 1, deadline);
+    // Keeping an earlier alarm is safe: it rechecks the authoritative deadlines.
+    if (this.scheduledAlarmAt !== null && this.scheduledAlarmAt <= deadline) return;
+    await this.ctx.storage.setAlarm(deadline);
+    this.scheduledAlarmAt = deadline;
   }
 
-  initialize(code, data) {
+  initialize(code, data, creationId) {
     return this.serial(async () => {
+      if (creationId && this.room?.creationId === creationId) {
+        await this.schedule();
+        return { code: this.room.code, hostToken: this.room.hostToken };
+      }
       if (this.room && (this.room.pendingResult || Date.now() < (this.room.cleanupAt || this.room.lastActivityAt + TTL))) return null;
       if (!CODE.test(code) || !createValid(data)) throw new Error('Invalid room');
       this.clearRoom();
@@ -132,6 +158,7 @@ export class GameRoom extends DurableObject {
       this.gm.rooms.delete(created.code);
       this.room = created.room;
       this.room.code = code;
+      this.room.creationId = creationId;
       this.room.hostToken = crypto.randomUUID();
       this.room.hostConnected = false;
       this.gm.rooms.set(code, this.room);
@@ -159,9 +186,28 @@ export class GameRoom extends DurableObject {
     try { ws.send(JSON.stringify({ event, data })); } catch { /* Close event removes the connection. */ }
   }
   broadcast(event, data) {
-    for (const ws of this.ctx.getWebSockets()) if (ws.deserializeAttachment()?.joined) this.send(ws, event, data);
+    const encoded = JSON.stringify({ event, data });
+    for (const ws of this.ctx.getWebSockets()) {
+      if (!ws.deserializeAttachment()?.joined) continue;
+      try { ws.send(encoded); } catch { /* Close event removes the connection. */ }
+    }
   }
-  state() { if (this.room) this.broadcast('game-state', this.gm.getGameState(this.room)); }
+  cancelPendingState() {
+    if (this.pendingStateTimer !== null) clearTimeout(this.pendingStateTimer);
+    this.pendingStateTimer = null;
+  }
+  state() {
+    this.cancelPendingState();
+    if (this.room) this.broadcast('game-state', this.gm.getGameState(this.room));
+  }
+  queueState() {
+    if (this.pendingStateTimer !== null) return;
+    // Only burst updates use this short timer; idle rooms still hibernate.
+    this.pendingStateTimer = setTimeout(() => {
+      this.pendingStateTimer = null;
+      this.serial(() => this.state()).catch(() => {});
+    }, 20);
+  }
   error(ws, message = "So'rov noto'g'ri") { this.send(ws, 'error', { message }); }
   ping(ws) {
     const meta = ws.deserializeAttachment();
@@ -234,6 +280,7 @@ export class GameRoom extends DurableObject {
       }
       if (event === 'finish-game') {
         if (meta.id !== room.hostSocketId) return;
+        this.cancelPendingState();
         const result = this.gm.finishGame(meta.id);
         if (!result) return;
         room.pendingResult = { id: crypto.randomUUID(), ...result.result };
@@ -244,6 +291,7 @@ export class GameRoom extends DurableObject {
       const method = Object.hasOwn(methods, event) ? methods[event] : null;
       if (!method || room.phase === 'finished' || !this.valid(event, data)) return this.error(ws);
       if (room.timerEnd && room.timerEnd <= Date.now()) this.expireTimer();
+      const hadBuzz = room.buzzOrder.length > 0;
       const result = this.gm[method](meta.id, data);
       if (!result) return;
       if (result.error) return this.error(ws, result.error);
@@ -259,7 +307,8 @@ export class GameRoom extends DurableObject {
       if (result.falstart) this.broadcast('falstart-caught', { playerId: result.playerId });
       if (event === 'buzz' && room.buzzOrder.length) this.broadcast('buzz-update', { buzzOrder: room.buzzOrder });
       if (event === 'remove-player') this.broadcast('player-removed', { playerId: data.playerId, socketId: result.removedSocketId || null });
-      this.state();
+      if (event === 'buzz' && hadBuzz && !result.falstart) this.queueState();
+      else this.state();
     }).catch(() => this.error(ws, 'Amal bajarilmadi. Qayta urinib ko‘ring.'));
   }
 
@@ -283,17 +332,21 @@ export class GameRoom extends DurableObject {
   }
 
   clearRoom() {
+    this.cancelPendingState();
+    this.scheduledAlarmAt = null;
     for (const ws of this.ctx.getWebSockets()) { try { ws.close(1000, 'Room expired'); } catch {} }
     this.room = null; this.gm.rooms.clear(); this.gm.socketToRoom.clear(); this.gm.joinAttempts.clear();
   }
 
   alarm() {
     return this.serial(async () => {
+      this.scheduledAlarmAt = null;
       if (!this.room) return;
       if (this.room.pendingResult) {
         try { await this.saveFinished(); } catch {
           // Explicitly rearm: platform alarm retries are bounded, the outbox is not.
-          await this.ctx.storage.setAlarm(Date.now() + 10000);
+          this.scheduledAlarmAt = Date.now() + 10000;
+          await this.ctx.storage.setAlarm(this.scheduledAlarmAt);
           return;
         }
       }

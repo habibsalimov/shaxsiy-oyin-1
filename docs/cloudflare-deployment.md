@@ -69,3 +69,7 @@ Browser verification is reproducible with `python3 scripts/cloudflare-browser-sm
 ## Git delivery scope
 
 The migration PR starts from `origin/master` and preserves unrelated staged changes in the primary checkout. The original live cutover also included pre-existing local clock-synchronization, URL cleanup, and favicon changes, which are not part of this focused PR. The isolated PR checkout passes 38 application/client tests and 6 Worker tests independently. Do not overwrite a deployed build with an older baseline without reconciling those separately owned changes.
+
+### Load-test follow-up
+
+Worker version `dd8783c4-4251-4ebc-87d3-cf23f079afc3` adds burst fanout optimization and idempotent retries for explicitly transient room-creation RPC failures. The focused PR now passes 53 unit/regression tests. See [bounded load validation](cloudflare-load-test.md) for the initial failures, final measurements, and limitations.

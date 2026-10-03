@@ -9,7 +9,7 @@ const source = (await readFile(new URL('./index.js', import.meta.url), 'utf8'))
   .replace("import { DurableObject } from 'cloudflare:workers';", 'class DurableObject { constructor(ctx, env) { this.ctx = ctx; this.env = env; } }')
   .replace("'../server/GameManager.js'", JSON.stringify(new URL('../server/GameManager.js', import.meta.url).href));
 globalThis.WebSocketRequestResponsePair = class { constructor(request, response) { this.request = request; this.response = response; } };
-const { GameRoom } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const { GameRoom, initializeWithRetry, default: worker } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 function context() {
   const db = new DatabaseSync(':memory:');
@@ -18,7 +18,8 @@ function context() {
     storage: {
       sql: { exec(sql, ...values) { const stmt = db.prepare(sql); const rows = stmt.all(...values); return { toArray: () => rows }; } },
       transactionSync(fn) { db.exec('BEGIN'); try { fn(); db.exec('COMMIT'); } catch (e) { db.exec('ROLLBACK'); throw e; } },
-      async setAlarm(time) { this.alarmAt = time; }, async deleteAlarm() { this.alarmAt = null; },
+      alarmWrites: 0,
+      async setAlarm(time) { this.alarmAt = time; this.alarmWrites++; }, async deleteAlarm() { this.alarmAt = null; },
     },
     setWebSocketAutoResponse() {}, getWebSockets() { return this.sockets; },
   };
@@ -135,4 +136,164 @@ test('pending results prevent room reuse, rearm failed alarms, and allow reconne
   fails = false;
   await restored.alarm();
   assert(reconnect.messages.some(m => m.event === 'game-finished'));
+});
+
+test('buzz bursts persist every answer, freeze immediately, and coalesce full state fanout', async () => {
+  const { ctx, room, host, player } = await setup();
+  const players = [player];
+  for (let i = 1; i < 20; i++) {
+    const peer = socket(ctx, `player-${i}`);
+    await message(room, peer, 'join-room', { code: '1234', playerName: `Player ${i}` });
+    players.push(peer);
+  }
+  await message(room, host, 'update-settings', { queuedAnswers: true });
+  await message(room, host, 'start-game');
+  await message(room, host, 'start-timer', { ti: 0, ni: 0 });
+  host.messages.length = 0;
+  const alarmsBefore = ctx.storage.alarmWrites;
+  await message(room, players[0], 'buzz');
+  const first = host.messages.find(m => m.event === 'game-state').data;
+  assert.equal(first.timerEnd, null);
+  assert.equal(first.timerHeldByBuzz, true);
+  assert.equal(first.buzzOrder.length, 1);
+  for (const peer of players.slice(1)) await message(room, peer, 'buzz');
+  assert.equal(host.messages.filter(m => m.event === 'game-state').length, 1);
+  assert.equal(host.messages.filter(m => m.event === 'buzz-update').length, 20);
+  assert.equal(new GameRoom(ctx, {}).room.buzzOrder.length, 20, 'coalescing must not defer durable game state');
+  assert.equal(ctx.storage.alarmWrites, alarmsBefore, 'a burst keeps the existing earlier alarm');
+  await new Promise(resolve => setTimeout(resolve, 40));
+  const states = host.messages.filter(m => m.event === 'game-state');
+  assert.equal(states.length, 2);
+  assert.equal(states[1].data.buzzOrder.length, 20);
+  assert.deepEqual(states[1].data.buzzOrder.map(p => p.playerId), room.room.buzzOrder.map(p => p.playerId));
+});
+
+test('a host action cancels pending burst state and publishes the newer state immediately', async () => {
+  const { ctx, room, host, player } = await setup();
+  const second = socket(ctx, 'second');
+  await message(room, second, 'join-room', { code: '1234', playerName: 'Second' });
+  await message(room, host, 'update-settings', { queuedAnswers: true });
+  await message(room, host, 'start-game');
+  await message(room, player, 'buzz');
+  await message(room, second, 'buzz');
+  assert.notEqual(room.pendingStateTimer, null);
+  host.messages.length = 0;
+  await message(room, host, 'judge', { playerId: room.room.players[0].id, result: 'correct' });
+  assert.equal(room.pendingStateTimer, null);
+  assert.equal(host.messages.filter(m => m.event === 'game-state').length, 1);
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.equal(host.messages.filter(m => m.event === 'game-state').length, 1);
+  assert.equal(room.room.buzzOrder.length, 0);
+});
+
+test('earlier cached alarms recheck the current cleanup deadline when they fire', async () => {
+  const { ctx, room } = await setup();
+  const originalDeadline = ctx.storage.alarmAt;
+  const writes = ctx.storage.alarmWrites;
+  room.room.lastActivityAt += 60000;
+  await room.schedule();
+  assert.equal(ctx.storage.alarmAt, originalDeadline);
+  assert.equal(ctx.storage.alarmWrites, writes);
+  await room.alarm();
+  assert(ctx.storage.alarmAt > originalDeadline);
+  assert.equal(ctx.storage.alarmWrites, writes + 1);
+});
+
+test('room initialization is idempotent after a committed response is lost and object evicts', async () => {
+  const ctx = context();
+  const room = new GameRoom(ctx, {});
+  const creationId = crypto.randomUUID();
+  const first = await room.initialize('4321', { hostName: 'Original' }, creationId);
+  const restored = new GameRoom(ctx, {});
+  const retry = await restored.initialize('4321', { hostName: 'Ignored retry data' }, creationId);
+  assert.deepEqual(retry, first);
+  assert.equal(restored.room.hostName, 'Original');
+  assert.equal(await restored.initialize('4321', { hostName: 'Another' }, crypto.randomUUID()), null);
+  assert.equal(restored.gm.getGameState(restored.room).creationId, undefined);
+});
+
+function creationEnv(errors) {
+  const attempts = [];
+  let stubs = 0;
+  return {
+    attempts,
+    get stubs() { return stubs; },
+    ROOMS: {
+      idFromName(code) { return code; },
+      get(code) {
+        const stubId = ++stubs;
+        return { async initialize(...args) {
+          attempts.push({ code, stubId, args });
+          const error = errors.shift();
+          if (error) throw error;
+          return { code, hostToken: 'secret' };
+        } };
+      },
+    },
+  };
+}
+
+test('retryable creation RPCs use three fresh stubs, one creation ID, and bounded backoff', async () => {
+  const retryable = Object.assign(new Error('temporary'), { retryable: true });
+  const env = creationEnv([retryable, retryable]);
+  const delays = [];
+  const result = await initializeWithRetry(env, '1234', { hostName: 'Host' }, 'creation-id', async ms => delays.push(ms));
+  assert.equal(result.code, '1234');
+  assert.deepEqual(delays, [100, 200]);
+  assert.equal(env.stubs, 3);
+  assert(env.attempts.every(attempt => attempt.args[2] === 'creation-id'));
+  const exhausted = creationEnv([retryable, retryable, retryable]);
+  await assert.rejects(initializeWithRetry(exhausted, '1234', {}, 'same-id', async () => {}));
+  assert.equal(exhausted.stubs, 3);
+});
+
+test('permanent and overloaded creation failures never retry', async () => {
+  for (const flags of [{}, { retryable: true, overloaded: true }]) {
+    const env = creationEnv([Object.assign(new Error('failure'), flags)]);
+    await assert.rejects(initializeWithRetry(env, '1234', {}, 'id', async () => assert.fail('must not delay')));
+    assert.equal(env.stubs, 1);
+  }
+});
+
+test('creation failure returns JSON503 with Retry-After and logs only safe flags', async () => {
+  const env = creationEnv([Object.assign(new Error('sensitive internal message'), { overloaded: true })]);
+  const logs = [];
+  const original = console.error;
+  console.error = value => logs.push(JSON.parse(value));
+  try {
+    const response = await worker.fetch(new Request('https://example.com/api/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hostName: 'Private Host' }) }), env);
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get('Retry-After'), '1');
+    assert((await response.json()).error);
+    assert.deepEqual(logs, [{ event: 'room_creation_failed', retryable: false, overloaded: true }]);
+  } finally { console.error = original; }
+});
+
+test('idempotent creation retry repairs an alarm write that failed after state persisted', async () => {
+  const ctx = context();
+  const room = new GameRoom(ctx, {});
+  const creationId = crypto.randomUUID();
+  const setAlarm = ctx.storage.setAlarm;
+  ctx.storage.setAlarm = async () => { throw Object.assign(new Error('temporary'), { retryable: true }); };
+  await assert.rejects(room.initialize('4321', { hostName: 'Host' }, creationId));
+  const committedToken = room.room.hostToken;
+  ctx.storage.setAlarm = setAlarm;
+  const restored = new GameRoom(ctx, {});
+  const retried = await restored.initialize('4321', { hostName: 'Host' }, creationId);
+  assert.equal(retried.hostToken, committedToken);
+  assert(ctx.storage.alarmAt > Date.now());
+});
+
+test('latency-adjusted buzz reorder is retained in the coalesced state', async () => {
+  const { ctx, room, host, player } = await setup();
+  const second = socket(ctx, 'second');
+  await message(room, second, 'join-room', { code: '1234', playerName: 'Second' });
+  await message(room, host, 'update-settings', { queuedAnswers: true });
+  await message(room, host, 'start-game');
+  room.room.players[1].latency = 1000;
+  await message(room, player, 'buzz');
+  await message(room, second, 'buzz');
+  await new Promise(resolve => setTimeout(resolve, 40));
+  const last = host.messages.filter(m => m.event === 'game-state').at(-1).data;
+  assert.equal(last.buzzOrder[0].socketId, 'second');
 });
