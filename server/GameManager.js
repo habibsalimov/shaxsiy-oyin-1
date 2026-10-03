@@ -54,7 +54,8 @@ function getRoomAttachmentSize(room) {
 }
 
 export class GameManager {
-  constructor() {
+  constructor({ scheduleCleanup = (...args) => setTimeout(...args) } = {}) {
+    this.scheduleCleanup = scheduleCleanup;
     this.rooms = new Map();
     this.socketToRoom = new Map();
     this.joinAttempts = new Map();
@@ -831,7 +832,7 @@ export class GameManager {
     room.players.forEach(p => this.socketToRoom.delete(p.socketId));
 
     // Schedule room cleanup after 5 minutes
-    setTimeout(() => {
+    this.scheduleCleanup(() => {
       this.rooms.delete(room.code);
     }, 5 * 60 * 1000);
 
