@@ -31,6 +31,7 @@ if (!window.storage) {
 
 import { useState, useEffect, useRef } from "react";
 import { T } from './utils/constants.js';
+import { syncServerTime } from './utils/serverTime.js';
 import { getSocket, onEvent, emitEvent } from './socket.js';
 import { LandingScreen } from './components/LandingScreen.jsx';
 import { HostGameScreen } from './components/HostGameScreen.jsx';
@@ -50,6 +51,10 @@ const DEV_SCREENS = [
 
 function genId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
+function clearUrlHash() {
+  window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
 }
 
 export default function App() {
@@ -93,8 +98,10 @@ export default function App() {
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
 
-    if (window.location.hash.startsWith("#game/") && !sessionStorage.getItem("game-session")) {
-      window.location.hash = "";
+    if (window.location.href.endsWith("#")) {
+      clearUrlHash();
+    } else if (window.location.hash.startsWith("#game/") && !sessionStorage.getItem("game-session")) {
+      clearUrlHash();
     }
 
     const unsub1 = onEvent("room-created", ({ code, hostToken }) => {
@@ -113,6 +120,7 @@ export default function App() {
     });
 
     const unsub2 = onEvent("game-state", (state) => {
+      syncServerTime(state.serverNow);
       gameStateRef.current = state;
       setGameState(state);
       try {
@@ -184,7 +192,7 @@ export default function App() {
       setTimeout(() => setErrorMsg(null), 4000);
       setScreen(prev => {
         if ((prev === "hostGame" || prev === "playerGame") && !gameStateRef.current) {
-          window.location.hash = "";
+          clearUrlHash();
           sessionStorage.removeItem("game-session");
           setRoomCode(null);
           setIsHost(false);
@@ -201,7 +209,7 @@ export default function App() {
         setRoomCode(null);
         setIsHost(false);
         gameStateRef.current = null;
-        window.location.hash = "";
+        clearUrlHash();
         sessionStorage.removeItem("game-session");
         setErrorMsg("Siz o'yindan chiqarildingiz");
         setTimeout(() => setErrorMsg(null), 4000);
@@ -311,7 +319,7 @@ export default function App() {
               setGameState(null);
               setRoomCode(null);
               setIsHost(false);
-              window.location.hash = "";
+              clearUrlHash();
               sessionStorage.removeItem("game-session");
             }}
           />

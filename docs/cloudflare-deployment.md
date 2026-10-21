@@ -68,7 +68,7 @@ Browser verification is reproducible with `python3 scripts/cloudflare-browser-sm
 
 ## Git delivery scope
 
-The migration PR starts from `origin/master` and preserves unrelated staged changes in the primary checkout. The original live cutover also included pre-existing local clock-synchronization, URL cleanup, and favicon changes, which are not part of this focused PR. The isolated PR checkout passes 38 application/client tests and 6 Worker tests independently. Do not overwrite a deployed build with an older baseline without reconciling those separately owned changes.
+The migration PR starts from `origin/master`. The live cutover also shipped local clock-synchronization (`serverNow` in `game-state`, `src/utils/serverTime.js`), URL hash cleanup, and an SVG favicon; these are included as a separate commit so the PR matches what runs in production. Do not overwrite a deployed build with an older baseline that lacks them.
 
 ### Load-test follow-up
 

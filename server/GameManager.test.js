@@ -93,6 +93,20 @@ test("player management uses stable player IDs instead of socket IDs", () => {
   assert.equal(gm.getRoomForSocket("player-socket-1"), null);
 });
 
+test("game state includes server time for client timer sync", () => {
+  const { gm, room } = createPlayingRoom();
+  const originalNow = Date.now;
+
+  try {
+    Date.now = () => 123456;
+    const state = gm.getGameState(room);
+
+    assert.equal(state.serverNow, 123456);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test("resetting a cell clears its play state and unlocks it for reuse", () => {
   const { gm, room } = createPlayingRoom();
   const player = room.players[0];

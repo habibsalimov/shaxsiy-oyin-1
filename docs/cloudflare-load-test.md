@@ -61,4 +61,4 @@ Worker version `dd8783c4-4251-4ebc-87d3-cf23f079afc3` passed both bounded scenar
 | 5 rooms × 20 players | 85.15 / 135.79 ms | 95.79 / 236.45 ms | 145.65 / 468.15 ms |
 | 1 room × 100 players | 215.61 / 290.20 ms | 385.26 / 523.07 ms | 538.23 / 547.40 ms |
 
-The final public-domain browser smoke test also passed host/player creation, joining, buzzing, judging, player refresh, default topic creation, and saved results without page errors. The isolated PR checkout passes 38 application/client tests and 15 Worker tests; the production checkout additionally contains two pre-existing clock synchronization tests outside this PR's scope.
+The final public-domain browser smoke test also passed host/player creation, joining, buzzing, judging, player refresh, default topic creation, and saved results without page errors. The PR branch passes 40 application/client tests (including the two clock synchronization tests) and 15 Worker tests.

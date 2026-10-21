@@ -866,6 +866,7 @@ export class GameManager {
       hostSocketId: room.hostSocketId,
       hostConnected: room.hostConnected !== false,
       settings: { ...room.settings },
+      serverNow: Date.now(),
       topicNames: [...room.topicNames],
       topicNominals: [...room.topicNominals],
       players: room.players.map(p => ({

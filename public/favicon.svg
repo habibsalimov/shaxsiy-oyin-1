@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SH/O‘">
+  <line x1="12" y1="33" x2="52" y2="33" stroke="#0a0e1a" stroke-width="7" stroke-linecap="round"/>
+  <line x1="12" y1="33" x2="52" y2="33" stroke="#f5c800" stroke-width="4" stroke-linecap="round"/>
+  <text x="32" y="25"
+        fill="#f5c800"
+        stroke="#0a0e1a"
+        stroke-width="2.4"
+        paint-order="stroke fill"
+        font-family="Anton, Arial Black, Impact, sans-serif"
+        font-size="29"
+        font-weight="900"
+        text-anchor="middle"
+        letter-spacing="-1">SH</text>
+  <text x="32" y="59"
+        fill="#f5c800"
+        stroke="#0a0e1a"
+        stroke-width="2.4"
+        paint-order="stroke fill"
+        font-family="Anton, Arial Black, Impact, sans-serif"
+        font-size="29"
+        font-weight="900"
+        text-anchor="middle"
+        letter-spacing="-1">O<tspan font-size="16" dy="-12">‘</tspan></text>
+</svg>
